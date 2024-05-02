@@ -5,11 +5,11 @@ import aiohttp
 from telegram.ext import Application, MessageHandler, filters, CommandHandler, ConversationHandler
 from telegram import ReplyKeyboardMarkup
 
-BOT_TOKEN = '6695783288:AAE_aD-9wJGgWy-5uEUp2YK0sDxWoHPbXeY'
+BOT_TOKEN = '6522784356:AAHB7lKSBukJDq-Tq3SAB9mxql95Cn9Dutg'
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG
 )
-
+db_session.global_init("db/data_base.db")
 logger = logging.getLogger(__name__)
 
 
