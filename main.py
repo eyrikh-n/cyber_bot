@@ -95,7 +95,7 @@ async def menu(update:Update, context:ContextTypes.DEFAULT_TYPE):
     user.Recommendation = context.user_data['days']
     db_sess.add(user)
     db_sess.commit()
-    reply_keyboard = [['Мой профиль'], ['Рекомендации'], ['Результаты выполнения'],
+    reply_keyboard = [['Мой профиль', 'Рекомендации'], ['Результаты выполнения'],
                       ['Пройти тест по цифровой гигиене'], ['Пригласить друзей', 'Помощь']]
     # inline_kb_full = InlineKeyboardMarkup(row_width=2)
     # inline_profile = InlineKeyboardButton('Мой профиль', callback_data='profile')
