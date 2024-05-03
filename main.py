@@ -144,7 +144,7 @@ def main():
     handler_5 = MessageHandler(condition, menu)
     handler_6 = MessageHandler(condition, error_name)
     conv_handler = ConversationHandler(
-        entry_points=[MessageHandler(filters.TEXT & ~filters.COMMAND, start)],
+        entry_points=[CommandHandler("start", start)],
         states={
             1: [handler_1],
             2: [handler_2],
