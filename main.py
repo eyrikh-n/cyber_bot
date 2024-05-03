@@ -1,9 +1,15 @@
 import logging
+
+from aiogram import Dispatcher, F
+from aiogram.filters.callback_data import CallbackData
+from aiogram.types import CallbackQuery
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+
 from data import db_session
 from data.users import User
 import aiohttp
-from telegram.ext import Application, MessageHandler, filters, CommandHandler, ConversationHandler
-from telegram import ReplyKeyboardMarkup
+from telegram.ext import Application, MessageHandler, filters, CommandHandler, ConversationHandler, ContextTypes
+from telegram import ReplyKeyboardMarkup, Update
 
 BOT_TOKEN = '6522784356:AAHB7lKSBukJDq-Tq3SAB9mxql95Cn9Dutg'
 logging.basicConfig(
@@ -25,10 +31,10 @@ async def stop(update, context):
 
 async def start(update, context):
     reply_keyboard = [['Запустить']]
-    markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
+    markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
     await update.message.reply_text(
         "Добрый день. Данный бот поможет вам за N дней усилить защиту ваших аккаунтов, данных, а"
-        " также обучит основам обеспечения цифровой гигиены. Вам достаточно ежедневно выполнять по"
+        " также обучит основам обеспечения цифровой гигиены. 🤖 Вам достаточно ежедневно выполнять по"
         " одной рекомендации.", reply_markup=markup)
     return 1
 
@@ -36,25 +42,26 @@ async def start(update, context):
 async def day(update, context):
     name = update.message.text
     if any(ch.isdigit() for ch in name):
-        return 6
+        await update.message.reply_text("🫣 Не похоже на [имя/фамилию]. Попробуйте еще раз")
+        return 2
     else:
         context.user_data['name'] = update.message.text
         reply_keyboard = [['Ежедневно'], ['Рабочие/выходные дни']]
-        markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
+        markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
         await update.message.reply_text("Сформируйте удобный для вас график получения"
                                         " рекомендаций и уведомлений. Какой график для вас удобен?", reply_markup=markup)
         return 3
 
 
 async def error_name(update, context):
-    await update.message.reply_text("Не похоже на [имя/фамилию]. Попробуйте еще раз")
+    await update.message.reply_text("🫣 Не похоже на [имя/фамилию]. Попробуйте еще раз")
     return 2
 
 
 async def sex(update, context):
     context.user_data['days'] = update.message.text
     reply_keyboard = [['Мужской', 'Женский'], ['Пропустить']]
-    markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
+    markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
     await update.message.reply_text("Укажите пол.", reply_markup=markup)
     return 4
 
@@ -66,12 +73,12 @@ async def age(update, context):
         context.user_data['sex'] = 'Не указан'
     reply_keyboard = [['до 18'], ['от 18 до 25'], ['от 26 до 30', 'от 31 до 35'],
                       ['от 36 до 40', 'от 41 до 45'], ['от 46 до 55', 'старше 55']]
-    markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
+    markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
     await update.message.reply_text("Укажите возраст.", reply_markup=markup)
     return 5
 
 
-async def menu(update, context):
+async def menu(update:Update, context:ContextTypes.DEFAULT_TYPE):
     if len(update.message.text.split()) != 2:
         age = update.message.text.split()
         context.user_data['age'] = f"{age[1]}-{age[3]}"
@@ -88,9 +95,21 @@ async def menu(update, context):
     user.Recommendation = context.user_data['days']
     db_sess.add(user)
     db_sess.commit()
-    # markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
-    # await update.message.reply_text("Укажите возраст.", reply_markup=markup)
-    # return 6
+    reply_keyboard = [['Мой профиль'], ['Рекомендации'], ['Результаты выполнения'],
+                      ['Пройти тест по цифровой гигиене'], ['Пригласить друзей', 'Помощь']]
+    # inline_kb_full = InlineKeyboardMarkup(row_width=2)
+    # inline_profile = InlineKeyboardButton('Мой профиль', callback_data='profile')
+    # inline_kb_full.add(InlineKeyboardButton('Мой профиль', url='https://www.youtube.com/watch?v=H9yVRqPixS4'))
+    # inline_recommendations = InlineKeyboardButton('Рекомендации', callback_data='recommendations')
+    # inline_kb_full.row(inline_recommendations)
+    # inline_kb_full.add(InlineKeyboardButton('Результаты выполнения', callback_data='results'))
+    # inline_kb_full.add(InlineKeyboardButton('Пройти тест по цифровой гигиене', callback_data='test'))
+    # inline_invite = InlineKeyboardButton('Пригласить друзей', callback_data='invitation')
+    # inline_help = InlineKeyboardButton('Помощь', callback_data='help')
+    # inline_kb_full.row(inline_invite, inline_help)
+    markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
+    await update.message.reply_text("Меню", reply_markup=markup)
+    return 1
 
 
 async def greating(update, context):
@@ -98,7 +117,7 @@ async def greating(update, context):
 
     if context.user_data['state'] == 'Запустить':
         reply_keyboard = [['Давайте поскорее начнём!']]
-        markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
+        markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
         await update.message.reply_text("Вы сделали уверенный шаг на пути обеспечения безопасности ваших данных. "
                                         "Пожалуйста, ответьте на несколько вопросов, и мы начнем.", reply_markup=markup)
         return 1
@@ -125,7 +144,7 @@ def main():
     handler_5 = MessageHandler(condition, menu)
     handler_6 = MessageHandler(condition, error_name)
     conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('start', start)],
+        entry_points=[MessageHandler(filters.TEXT & ~filters.COMMAND, start)],
         states={
             1: [handler_1],
             2: [handler_2],
