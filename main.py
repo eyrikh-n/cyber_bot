@@ -1,13 +1,8 @@
 import logging
 
-from aiogram import Dispatcher, F
-from aiogram.filters.callback_data import CallbackData
-from aiogram.types import CallbackQuery
-from aiogram.utils.keyboard import InlineKeyboardBuilder
-
 from data import db_session
 from data.users import User
-import aiohttp
+
 from telegram.ext import Application, MessageHandler, filters, CommandHandler, ConversationHandler, ContextTypes
 from telegram import ReplyKeyboardMarkup, Update
 
