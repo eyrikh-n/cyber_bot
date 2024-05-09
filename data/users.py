@@ -15,4 +15,4 @@ class User(SqlAlchemyBase, UserMixin, SerializerMixin):
     Registration_Day = sqlalchemy.Column(sqlalchemy.DateTime,
                                          default=datetime.datetime.now)
     Age_Group = sqlalchemy.Column(sqlalchemy.String, nullable=True)
-    Recommendation = sqlalchemy.Column(sqlalchemy.String, nullable=True)
+    Schedule = sqlalchemy.Column(sqlalchemy.String, nullable=True)

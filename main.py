@@ -87,7 +87,7 @@ async def menu(update:Update, context:ContextTypes.DEFAULT_TYPE):
     user = User()
     user.Name = context.user_data['name']
     user.Age_Group = context.user_data['age']
-    user.Recommendation = context.user_data['days']
+    user.Schedule = context.user_data['days']
     db_sess.add(user)
     db_sess.commit()
     reply_keyboard = [['Мой профиль', 'Рекомендации'], ['Результаты выполнения'],
