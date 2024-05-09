@@ -13,6 +13,13 @@ logging.basicConfig(
 db_session.global_init("db/data_base.db")
 logger = logging.getLogger(__name__)
 
+GREETING_STATE = 1
+REGISTRATION_STATE = 2
+NAME_STATE = 3
+SCHEDULE_STATE = 4
+SEX_STATE = 5
+AGE_STATE = 6
+MENU_STATE = 7
 
 async def help(update, context):
     """Отправляет сообщение когда получена команда /help"""
@@ -31,58 +38,104 @@ async def start(update, context):
         "Добрый день. Данный бот поможет вам за N дней усилить защиту ваших аккаунтов, данных, а"
         " также обучит основам обеспечения цифровой гигиены. 🤖 Вам достаточно ежедневно выполнять по"
         " одной рекомендации.", reply_markup=markup)
-    return 1
+    return GREETING_STATE
 
 
-async def day(update, context):
+async def greeting(update, context):
+    message_text = update.message.text
+    if message_text == 'Запустить':
+        reply_keyboard = [['Давайте поскорее начнём!']]
+        markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
+        await update.message.reply_text("Вы сделали уверенный шаг на пути обеспечения безопасности ваших данных. "
+                                        "Пожалуйста, ответьте на несколько вопросов, и мы начнем.", reply_markup=markup)
+        return REGISTRATION_STATE
+    else:
+        reply_keyboard = [['Запустить']]
+        markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
+        await update.message.reply_text(f"Неизвестная команда [{message_text}], попробуйте еще раз", reply_markup=markup)
+        return GREETING_STATE
+
+
+async def registration(update, context):
+    message_text = update.message.text
+    if message_text == 'Давайте поскорее начнём!':
+        await update.message.reply_text("Как к вам обращаться?")
+        return NAME_STATE
+    else:
+        reply_keyboard = [['Давайте поскорее начнём!']]
+        markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
+        await update.message.reply_text(f"Неизвестная команда [{message_text}], попробуйте еще раз", reply_markup=markup)
+        return REGISTRATION_STATE
+
+
+async def name(update, context):
     name = update.message.text
     if any(ch.isdigit() for ch in name):
         await update.message.reply_text("🫣 Не похоже на [имя/фамилию]. Попробуйте еще раз")
-        return 2
+        return NAME_STATE
     else:
         context.user_data['name'] = update.message.text
         reply_keyboard = [['Ежедневно'], ['Рабочие/выходные дни']]
         markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
         await update.message.reply_text("Сформируйте удобный для вас график получения"
-                                        " рекомендаций и уведомлений. Какой график для вас удобен?", reply_markup=markup)
-        return 3
+                                        " рекомендаций и уведомлений. Какой график для вас удобен?",
+                                        reply_markup=markup)
+        return SCHEDULE_STATE
 
 
-async def error_name(update, context):
-    await update.message.reply_text("🫣 Не похоже на [имя/фамилию]. Попробуйте еще раз")
-    return 2
+async def schedule(update, context):
+    days_value = update.message.text
+    if days_value == "Ежедневно" or days_value == "Рабочие/выходные дни":
+        context.user_data['days'] = days_value
+        reply_keyboard = [['Мужской', 'Женский'], ['Пропустить']]
+        markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
+        await update.message.reply_text("Укажите пол.", reply_markup=markup)
+        return SEX_STATE
+    else:
+        await update.message.reply_text("Неизвестное значение, выберите график из предложенных вариантов")
+        return SCHEDULE_STATE
 
 
 async def sex(update, context):
-    context.user_data['days'] = update.message.text
-    reply_keyboard = [['Мужской', 'Женский'], ['Пропустить']]
-    markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
-    await update.message.reply_text("Укажите пол.", reply_markup=markup)
-    return 4
+    sex_value = update.message.text
+    if sex_value == "Мужской" or sex_value == "Женский" or sex_value == "Пропустить":
+        if sex_value != 'Пропустить':
+            context.user_data['sex'] = sex_value
+
+        reply_keyboard = [['до 18'], ['от 18 до 25'], ['от 26 до 30', 'от 31 до 35'],
+                          ['от 36 до 40', 'от 41 до 45'], ['от 46 до 55', 'старше 55']]
+        markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
+        await update.message.reply_text("Укажите возраст.", reply_markup=markup)
+        return AGE_STATE
+    else:
+        await update.message.reply_text("Неизвестное значение, выберите пол из предложенных вариантов")
+        return SEX_STATE
 
 
 async def age(update, context):
-    if update.message.text != 'Пропустить':
-        context.user_data['sex'] = update.message.text
-    else:
-        context.user_data['sex'] = 'Не указан'
-    reply_keyboard = [['до 18'], ['от 18 до 25'], ['от 26 до 30', 'от 31 до 35'],
-                      ['от 36 до 40', 'от 41 до 45'], ['от 46 до 55', 'старше 55']]
-    markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
-    await update.message.reply_text("Укажите возраст.", reply_markup=markup)
-    return 5
-
-
-async def menu(update:Update, context:ContextTypes.DEFAULT_TYPE):
-    if len(update.message.text.split()) != 2:
-        age = update.message.text.split()
+    age_value = update.message.text
+    if len(age_value.split()) != 2:
+        age = age_value.split()
         context.user_data['age'] = f"{age[1]}-{age[3]}"
     else:
-        age = update.message.text.split()
+        age = age_value.split()
         if age[1] == '18':
             context.user_data['age'] = "0-18"
         else:
             context.user_data['age'] = "55-100"
+
+    create_profile(context)
+
+    reply_keyboard = [['Мой профиль', 'Рекомендации'], ['Результаты выполнения'],
+                      ['Пройти тест по цифровой гигиене'], ['Пригласить друзей', 'Помощь']]
+
+    markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
+    await update.message.reply_text("Меню", reply_markup=markup)
+
+    return MENU_STATE
+
+
+def create_profile(context):
     db_sess = db_session.create_session()
     user = User()
     user.Name = context.user_data['name']
@@ -90,8 +143,10 @@ async def menu(update:Update, context:ContextTypes.DEFAULT_TYPE):
     user.Schedule = context.user_data['days']
     db_sess.add(user)
     db_sess.commit()
-    reply_keyboard = [['Мой профиль', 'Рекомендации'], ['Результаты выполнения'],
-                      ['Пройти тест по цифровой гигиене'], ['Пригласить друзей', 'Помощь']]
+
+
+async def menu(update:Update, context:ContextTypes.DEFAULT_TYPE):
+
     # inline_kb_full = InlineKeyboardMarkup(row_width=2)
     # inline_profile = InlineKeyboardButton('Мой профиль', callback_data='profile')
     # inline_kb_full.add(InlineKeyboardButton('Мой профиль', url='https://www.youtube.com/watch?v=H9yVRqPixS4'))
@@ -102,28 +157,8 @@ async def menu(update:Update, context:ContextTypes.DEFAULT_TYPE):
     # inline_invite = InlineKeyboardButton('Пригласить друзей', callback_data='invitation')
     # inline_help = InlineKeyboardButton('Помощь', callback_data='help')
     # inline_kb_full.row(inline_invite, inline_help)
-    markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
-    await update.message.reply_text("Меню", reply_markup=markup)
-    return 1
 
-
-async def greating(update, context):
-    context.user_data['state'] = update.message.text
-
-    if context.user_data['state'] == 'Запустить':
-        reply_keyboard = [['Давайте поскорее начнём!']]
-        markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
-        await update.message.reply_text("Вы сделали уверенный шаг на пути обеспечения безопасности ваших данных. "
-                                        "Пожалуйста, ответьте на несколько вопросов, и мы начнем.", reply_markup=markup)
-        return 1
-
-    if context.user_data['state'] == 'Давайте поскорее начнём!':
-        await update.message.reply_text("Как к вам обращаться?")
-        name = update.message.text
-        if any(ch.isdigit() for ch in name):
-            return 6
-        else:
-            return 2
+    return GREETING_STATE
 
 
 def main():
@@ -132,21 +167,24 @@ def main():
     application.add_handler(CommandHandler("help", help))
 
     condition = (filters.TEXT | filters.PHOTO) & ~filters.COMMAND
-    handler_1 = MessageHandler(condition, greating)
-    handler_2 = MessageHandler(condition, day)
-    handler_3 = MessageHandler(condition, sex)
-    handler_4 = MessageHandler(condition, age)
-    handler_5 = MessageHandler(condition, menu)
-    handler_6 = MessageHandler(condition, error_name)
+    greeting_handler = MessageHandler(condition, greeting)
+    registration_handler = MessageHandler(condition, registration)
+    name_handler = MessageHandler(condition, name)
+    schedule_handler = MessageHandler(condition, schedule)
+    sex_handler = MessageHandler(condition, sex)
+    age_handler = MessageHandler(condition, age)
+    menu_handler = MessageHandler(condition, menu)
+
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
-            1: [handler_1],
-            2: [handler_2],
-            3: [handler_3],
-            4: [handler_4],
-            5: [handler_5],
-            6: [handler_6]
+            GREETING_STATE: [greeting_handler],
+            REGISTRATION_STATE: [registration_handler],
+            NAME_STATE: [name_handler],
+            SCHEDULE_STATE: [schedule_handler],
+            SEX_STATE: [sex_handler],
+            AGE_STATE: [age_handler],
+            MENU_STATE: [menu_handler]
         },
         fallbacks=[CommandHandler('stop', stop)]
     )
