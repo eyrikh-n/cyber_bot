@@ -69,12 +69,12 @@ async def registration(update, context):
 
 
 async def name(update, context):
-    name = update.message.text
-    if any(ch.isdigit() for ch in name):
+    name_value = update.message.text
+    if any(ch.isdigit() for ch in name_value):
         await update.message.reply_text("🫣 Не похоже на [имя/фамилию]. Попробуйте еще раз")
         return NAME_STATE
     else:
-        context.user_data['name'] = update.message.text
+        context.user_data['name'] = name_value
         reply_keyboard = [['Ежедневно'], ['Рабочие/выходные дни']]
         markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
         await update.message.reply_text("Сформируйте удобный для вас график получения"
