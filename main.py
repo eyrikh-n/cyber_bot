@@ -149,11 +149,8 @@ def create_profile(update, context):
 async def menu(update:Update, context:ContextTypes.DEFAULT_TYPE):
     message_text = update.message.text
 
-    reply_keyboard = [['Мой профиль', 'Рекомендации'], ['Результаты выполнения'],
-                      ['Пройти тест по цифровой гигиене'], ['Пригласить друзей', 'Помощь']]
-    markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
-
     if message_text == 'Мой профиль':
+
         reply_keyboard = [['Редактировать данные'], ['Меню']]
         markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
 
@@ -168,23 +165,32 @@ async def menu(update:Update, context:ContextTypes.DEFAULT_TYPE):
                 f"💠 Имя - {name} \n"
                 f"💠 График - {schedule} \n"
                 f"💠 Возраст - {age_Group} лет", reply_markup=markup)
+            return PROFILE_STATE
         else:
             await update.message.reply_text("Профиль 🔽 \n"
                 f"💠 Имя - {name} \n"
                 f"💠 График - {schedule} \n"
                 f"💠 Возраст - {age_Group} лет \n",
                 f"💠 Пол {sex}", reply_markup=markup)
-        if message_text == 'Редактировать данные':
-            return REGISTRATION_STATE
-        # return PROFILE_STATE
+            return PROFILE_STATE
     else:
         await update.message.reply_text(f"Неизвестная команда [{message_text}], попробуйте еще раз", reply_markup=markup)
-        return GREETING_STATE
+        return MENU_STATE
 
 
 async def profile(update, context):
-    pass
-    
+    message_text = update.message.text
+
+    if message_text == 'Редактировать данные':
+        await update.message.reply_text("Как к вам обращаться?")
+        return NAME_STATE
+    if message_text == 'Меню':
+        reply_keyboard = [['Мой профиль', 'Рекомендации'], ['Результаты выполнения'],
+                      ['Пройти тест по цифровой гигиене'], ['Пригласить друзей', 'Помощь']]
+        markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
+
+        await update.message.reply_text("Меню", reply_markup=markup)
+        return MENU_STATE
 
 
 def main():
