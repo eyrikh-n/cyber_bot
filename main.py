@@ -123,7 +123,7 @@ async def age(update, context):
         else:
             context.user_data['age'] = "55-100"
 
-    create_profile(context)
+    create_profile(update, context)
 
     reply_keyboard = [['Мой профиль', 'Рекомендации'], ['Результаты выполнения'],
                       ['Пройти тест по цифровой гигиене'], ['Пригласить друзей', 'Помощь']]
@@ -134,13 +134,14 @@ async def age(update, context):
     return MENU_STATE
 
 
-def create_profile(context):
+def create_profile(update, context):
     db_sess = db_session.create_session()
     user = User()
     user.Name = context.user_data['name']
     user.Age_Group = context.user_data['age']
     user.Schedule = context.user_data['days']
     user.Sex = context.user_data['sex']
+    user.UserName = str(update.message.from_user.username)
     db_sess.add(user)
     db_sess.commit()
 
@@ -156,20 +157,22 @@ async def menu(update:Update, context:ContextTypes.DEFAULT_TYPE):
         reply_keyboard = [['Редактировать данные'], ['Меню']]
         markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
 
-        name = context.user_data['name']
-        age_Group = context.user_data['age']
-        schedule = context.user_data['days']
-        sex = context.user_data['sex']
+        db_sess = db_session.create_session()
+        user = db_sess.query(User).filter(User.UserName == str(update.message.from_user.username)).first()
+        name = user.Name
+        age_Group = user.Age_Group
+        schedule = user.Schedule
+        sex = user.Sex
         if sex == 'Пропустить':
             await update.message.reply_text("Профиль 🔽 \n"
                 f"💠 Имя - {name} \n"
                 f"💠 График - {schedule} \n"
-                f"💠 Возраст - {age_Group}", reply_markup=markup)
+                f"💠 Возраст - {age_Group} лет", reply_markup=markup)
         else:
             await update.message.reply_text("Профиль 🔽 \n"
                 f"💠 Имя - {name} \n"
                 f"💠 График - {schedule} \n"
-                f"💠 Возраст - {age_Group}",
+                f"💠 Возраст - {age_Group} лет \n",
                 f"💠 Пол {sex}", reply_markup=markup)
         if message_text == 'Редактировать данные':
             return REGISTRATION_STATE
