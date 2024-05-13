@@ -20,6 +20,7 @@ SCHEDULE_STATE = 4
 SEX_STATE = 5
 AGE_STATE = 6
 MENU_STATE = 7
+PROFILE_STATE = 8
 
 async def help(update, context):
     """Отправляет сообщение когда получена команда /help"""
@@ -58,7 +59,7 @@ async def greeting(update, context):
 
 async def registration(update, context):
     message_text = update.message.text
-    if message_text == 'Давайте поскорее начнём!':
+    if message_text == 'Давайте поскорее начнём!' or message_text == 'Редактировать данные':
         await update.message.reply_text("Как к вам обращаться?")
         return NAME_STATE
     else:
@@ -75,7 +76,7 @@ async def name(update, context):
         return NAME_STATE
     else:
         context.user_data['name'] = name_value
-        reply_keyboard = [['Ежедневно'], ['Рабочие/выходные дни']]
+        reply_keyboard = [['Ежедневно'], ['Рабочие', 'Выходные дни']]
         markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
         await update.message.reply_text("Сформируйте удобный для вас график получения"
                                         " рекомендаций и уведомлений. Какой график для вас удобен?",
@@ -85,7 +86,7 @@ async def name(update, context):
 
 async def schedule(update, context):
     days_value = update.message.text
-    if days_value == "Ежедневно" or days_value == "Рабочие/выходные дни":
+    if days_value == "Ежедневно" or days_value == "Рабочие" or days_value == "Выходные дни":
         context.user_data['days'] = days_value
         reply_keyboard = [['Мужской', 'Женский'], ['Пропустить']]
         markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
@@ -99,9 +100,7 @@ async def schedule(update, context):
 async def sex(update, context):
     sex_value = update.message.text
     if sex_value == "Мужской" or sex_value == "Женский" or sex_value == "Пропустить":
-        if sex_value != 'Пропустить':
-            context.user_data['sex'] = sex_value
-
+        context.user_data['sex'] = sex_value
         reply_keyboard = [['до 18'], ['от 18 до 25'], ['от 26 до 30', 'от 31 до 35'],
                           ['от 36 до 40', 'от 41 до 45'], ['от 46 до 55', 'старше 55']]
         markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
@@ -141,24 +140,48 @@ def create_profile(context):
     user.Name = context.user_data['name']
     user.Age_Group = context.user_data['age']
     user.Schedule = context.user_data['days']
+    user.Sex = context.user_data['sex']
     db_sess.add(user)
     db_sess.commit()
 
 
 async def menu(update:Update, context:ContextTypes.DEFAULT_TYPE):
+    message_text = update.message.text
 
-    # inline_kb_full = InlineKeyboardMarkup(row_width=2)
-    # inline_profile = InlineKeyboardButton('Мой профиль', callback_data='profile')
-    # inline_kb_full.add(InlineKeyboardButton('Мой профиль', url='https://www.youtube.com/watch?v=H9yVRqPixS4'))
-    # inline_recommendations = InlineKeyboardButton('Рекомендации', callback_data='recommendations')
-    # inline_kb_full.row(inline_recommendations)
-    # inline_kb_full.add(InlineKeyboardButton('Результаты выполнения', callback_data='results'))
-    # inline_kb_full.add(InlineKeyboardButton('Пройти тест по цифровой гигиене', callback_data='test'))
-    # inline_invite = InlineKeyboardButton('Пригласить друзей', callback_data='invitation')
-    # inline_help = InlineKeyboardButton('Помощь', callback_data='help')
-    # inline_kb_full.row(inline_invite, inline_help)
+    reply_keyboard = [['Мой профиль', 'Рекомендации'], ['Результаты выполнения'],
+                      ['Пройти тест по цифровой гигиене'], ['Пригласить друзей', 'Помощь']]
+    markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
 
-    return GREETING_STATE
+    if message_text == 'Мой профиль':
+        reply_keyboard = [['Редактировать данные'], ['Меню']]
+        markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
+
+        name = context.user_data['name']
+        age_Group = context.user_data['age']
+        schedule = context.user_data['days']
+        sex = context.user_data['sex']
+        if sex == 'Пропустить':
+            await update.message.reply_text("Профиль 🔽 \n"
+                f"💠 Имя - {name} \n"
+                f"💠 График - {schedule} \n"
+                f"💠 Возраст - {age_Group}", reply_markup=markup)
+        else:
+            await update.message.reply_text("Профиль 🔽 \n"
+                f"💠 Имя - {name} \n"
+                f"💠 График - {schedule} \n"
+                f"💠 Возраст - {age_Group}",
+                f"💠 Пол {sex}", reply_markup=markup)
+        if message_text == 'Редактировать данные':
+            return REGISTRATION_STATE
+        # return PROFILE_STATE
+    else:
+        await update.message.reply_text(f"Неизвестная команда [{message_text}], попробуйте еще раз", reply_markup=markup)
+        return GREETING_STATE
+
+
+async def profile(update, context):
+    pass
+    
 
 
 def main():
@@ -174,6 +197,7 @@ def main():
     sex_handler = MessageHandler(condition, sex)
     age_handler = MessageHandler(condition, age)
     menu_handler = MessageHandler(condition, menu)
+    profile_handler = MessageHandler(condition, profile)
 
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
@@ -184,7 +208,8 @@ def main():
             SCHEDULE_STATE: [schedule_handler],
             SEX_STATE: [sex_handler],
             AGE_STATE: [age_handler],
-            MENU_STATE: [menu_handler]
+            MENU_STATE: [menu_handler],
+            PROFILE_STATE: [profile_handler]
         },
         fallbacks=[CommandHandler('stop', stop)]
     )

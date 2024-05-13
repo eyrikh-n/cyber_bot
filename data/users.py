@@ -16,3 +16,4 @@ class User(SqlAlchemyBase, UserMixin, SerializerMixin):
                                          default=datetime.datetime.now)
     Age_Group = sqlalchemy.Column(sqlalchemy.String, nullable=True)
     Schedule = sqlalchemy.Column(sqlalchemy.String, nullable=True)
+    Sex = sqlalchemy.Column(sqlalchemy.String, nullable=True)
