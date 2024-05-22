@@ -13,6 +13,7 @@ logging.basicConfig(
 db_session.global_init("db/data_base.db")
 logger = logging.getLogger(__name__)
 
+flag_first_event = False
 GREETING_STATE = 1
 REGISTRATION_STATE = 2
 NAME_STATE = 3
@@ -21,6 +22,7 @@ SEX_STATE = 5
 AGE_STATE = 6
 MENU_STATE = 7
 PROFILE_STATE = 8
+FIRST_EVENT = 9
 
 async def help(update, context):
     """Отправляет сообщение когда получена команда /help"""
@@ -125,7 +127,8 @@ async def age(update, context):
 
     create_profile(update, context)
 
-    reply_keyboard = [['Мой профиль', 'Рекомендации'], ['Результаты выполнения'],
+    reply_keyboard = [['Мой профиль', 'Рекомендации'], ['Запустить новогодний адвент по цифровой гигиене'],
+                      ['Результаты выполнения'],
                       ['Пройти тест по цифровой гигиене'], ['Пригласить друзей', 'Помощь']]
 
     markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
@@ -142,20 +145,35 @@ def create_profile(update, context):
     user.Schedule = context.user_data['days']
     user.Sex = context.user_data['sex']
     user.UserName = str(update.message.from_user.username)
+    user.Chat_Id = str(update.message.chat.id)
     db_sess.add(user)
     db_sess.commit()
 
 
 async def menu(update:Update, context:ContextTypes.DEFAULT_TYPE):
     message_text = update.message.text
+    global flag_first_event
 
-    if message_text == 'Мой профиль':
+    if message_text == 'Запустить новогодний адвент по цифровой гигиене':
+        db_sess = db_session.create_session()
+        username = str(update.message.from_user.username)
+        user = db_sess.query(User).filter(User.UserName == username).first()
+        name = user.Name
+
+        flag_first_event = True
+        reply_keyboard = [['Отметить как выполненное', 'Отложить'], ['Меню']]
+        markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
+        await update.message.reply_text(f"{name} <Рекомендация 1*>", reply_markup=markup)
+        return FIRST_EVENT
+
+    elif message_text == 'Мой профиль':
 
         reply_keyboard = [['Редактировать данные'], ['Меню']]
         markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
 
         db_sess = db_session.create_session()
-        user = db_sess.query(User).filter(User.UserName == str(update.message.from_user.username)).first()
+        username = str(update.message.from_user.username)
+        user = db_sess.query(User).filter(User.UserName == username).first()
         name = user.Name
         age_Group = user.Age_Group
         schedule = user.Schedule
@@ -170,10 +188,18 @@ async def menu(update:Update, context:ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("Профиль 🔽 \n"
                 f"💠 Имя - {name} \n"
                 f"💠 График - {schedule} \n"
-                f"💠 Возраст - {age_Group} лет \n",
+                f"💠 Возраст - {age_Group} лет \n"
                 f"💠 Пол {sex}", reply_markup=markup)
             return PROFILE_STATE
     else:
+        if not flag_first_event:
+            reply_keyboard = [['Мой профиль', 'Рекомендации'], ['Запустить новогодний адвент по цифровой гигиене'],
+                              ['Результаты выполнения'],
+                              ['Пройти тест по цифровой гигиене'], ['Пригласить друзей', 'Помощь']]
+        else:
+            reply_keyboard = [['Мой профиль', 'Рекомендации'], ['Результаты выполнения'],
+                              ['Пройти тест по цифровой гигиене'], ['Пригласить друзей', 'Помощь']]
+        markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
         await update.message.reply_text(f"Неизвестная команда [{message_text}], попробуйте еще раз", reply_markup=markup)
         return MENU_STATE
 
@@ -185,11 +211,43 @@ async def profile(update, context):
         await update.message.reply_text("Как к вам обращаться?")
         return NAME_STATE
     if message_text == 'Меню':
-        reply_keyboard = [['Мой профиль', 'Рекомендации'], ['Результаты выполнения'],
-                      ['Пройти тест по цифровой гигиене'], ['Пригласить друзей', 'Помощь']]
+        if not flag_first_event:
+            reply_keyboard = [['Мой профиль', 'Рекомендации'], ['Запустить новогодний адвент по цифровой гигиене'],
+                              ['Результаты выполнения'],
+                              ['Пройти тест по цифровой гигиене'], ['Пригласить друзей', 'Помощь']]
+        else:
+            reply_keyboard = [['Мой профиль', 'Рекомендации'], ['Результаты выполнения'],
+                              ['Пройти тест по цифровой гигиене'], ['Пригласить друзей', 'Помощь']]
         markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
 
         await update.message.reply_text("Меню", reply_markup=markup)
+        return MENU_STATE
+    else:
+        reply_keyboard = [['Редактировать данные'], ['Меню']]
+        markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
+        await update.message.reply_text(f"Неизвестная команда [{message_text}], попробуйте еще раз",
+                                        reply_markup=markup)
+        return PROFILE_STATE
+
+
+async def first_event(update, conrext):
+    message_text = update.message.text
+    reply_keyboard = [['Мой профиль', 'Рекомендации'], ['Результаты выполнения'],
+                      ['Пройти тест по цифровой гигиене'], ['Пригласить друзей', 'Помощь']]
+
+    markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
+
+    if message_text == 'Отметить как выполненное':
+        pass
+    if message_text == 'Отложить':
+        pass
+    if message_text == 'Меню':
+        await update.message.reply_text(f"Меню",
+                                        reply_markup=markup)
+        return MENU_STATE
+    else:
+        await update.message.reply_text(f"Неизвестная команда [{message_text}], попробуйте еще раз",
+                                        reply_markup=markup)
         return MENU_STATE
 
 
@@ -207,6 +265,7 @@ def main():
     age_handler = MessageHandler(condition, age)
     menu_handler = MessageHandler(condition, menu)
     profile_handler = MessageHandler(condition, profile)
+    first_event_handler = MessageHandler(condition, first_event)
 
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
@@ -218,7 +277,8 @@ def main():
             SEX_STATE: [sex_handler],
             AGE_STATE: [age_handler],
             MENU_STATE: [menu_handler],
-            PROFILE_STATE: [profile_handler]
+            PROFILE_STATE: [profile_handler],
+            FIRST_EVENT: [first_event_handler]
         },
         fallbacks=[CommandHandler('stop', stop)]
     )
