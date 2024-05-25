@@ -19,3 +19,4 @@ class User(SqlAlchemyBase, UserMixin, SerializerMixin):
     Sex = sqlalchemy.Column(sqlalchemy.String, nullable=True)
     UserName = sqlalchemy.Column(sqlalchemy.String, nullable=True)
     Chat_Id = sqlalchemy.Column(sqlalchemy.String, nullable=True)
+    Time = sqlalchemy.Column(sqlalchemy.String, nullable=True)

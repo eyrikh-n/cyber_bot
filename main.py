@@ -15,7 +15,8 @@ logger = logging.getLogger(__name__)
 
 flag_first_event = False
 
-GREETING_STATE, REGISTRATION_STATE, NAME_STATE, SCHEDULE_STATE, SEX_STATE, AGE_STATE, SHOW_MENU_STATE = range(7)
+(GREETING_STATE, REGISTRATION_STATE, NAME_STATE, SCHEDULE_STATE, SEX_STATE,
+ AGE_STATE, SHOW_MENU_STATE, TIME_STATE) = range(8)
 
 PROFILE_SHOW_STATE, PROFILE_EDIT_STATE, PROFILE_EDIT_FIELD_STATE, PROFILE_EDIT_APPLY_STATE = range(4)
 
@@ -86,7 +87,7 @@ async def name(update, context):
         return NAME_STATE
     else:
         context.user_data['name'] = name_value
-        reply_keyboard = [['Ежедневно'], ['Рабочие', 'Выходные дни']]
+        reply_keyboard = [['Ежедневно'], ['Рабочие дни', 'Выходные дни']]
         markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
         await update.message.reply_text("Сформируйте удобный для вас график получения"
                                         " рекомендаций и уведомлений. Какой график для вас удобен?",
@@ -96,15 +97,30 @@ async def name(update, context):
 
 async def schedule(update, context):
     days_value = update.message.text
-    if days_value == "Ежедневно" or days_value == "Рабочие" or days_value == "Выходные дни":
+    if days_value == "Ежедневно" or days_value == "Рабочие дни" or days_value == "Выходные дни":
         context.user_data['days'] = days_value
-        reply_keyboard = [['Мужской', 'Женский'], ['Пропустить']]
-        markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
-        await update.message.reply_text("Укажите пол.", reply_markup=markup)
-        return SEX_STATE
+        await update.message.reply_text("Укажите время в часах(от 0 до 23), в которое вы хотите получать рекомендации ⌚")
+        return TIME_STATE
     else:
         await update.message.reply_text("Неизвестное значение, выберите график из предложенных вариантов")
         return SCHEDULE_STATE
+
+
+async def time_schedule(update, context):
+    time_value = update.message.text
+    if time_value.isdigit():
+        if 0 <= int(time_value) <= 23:
+            context.user_data['time'] = f'{time_value}:00:00'
+            reply_keyboard = [['Мужской', 'Женский'], ['Пропустить']]
+            markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
+            await update.message.reply_text("Укажите пол", reply_markup=markup)
+            return SEX_STATE
+        else:
+            await update.message.reply_text("В сутках только 24 часа 😝, попробуйте ещё раз")
+            return TIME_STATE
+    else:
+        await update.message.reply_text("Значение, которое вы ввели не является числом 😜, попробуйте ещё раз")
+        return TIME_STATE
 
 
 async def sex(update, context):
@@ -146,6 +162,7 @@ def create_profile(update, context):
     user.Sex = context.user_data['sex']
     user.UserName = str(update.message.from_user.username)
     user.Chat_Id = str(update.message.chat.id)
+    user.Time = context.user_data['time']
     db_sess.add(user)
     db_sess.commit()
 
@@ -175,7 +192,8 @@ async def show_profile(update, context):
     reply_text = ("Профиль (новый) 🔽 \n"
                   f"💠 Имя - {user.Name} \n"
                   f"💠 График - {user.Schedule} \n"
-                  f"💠 Возраст - {user.Age_Group} лет")
+                  f"💠 Возраст - {user.Age_Group} лет \n"
+                  f"💠 Время выдачи рекомендаций - {user.Time} лет \n")
     if user.Sex != 'Пропустить':
         reply_text = reply_text + f"\n💠 Пол {user.Sex}"
 
@@ -184,7 +202,11 @@ async def show_profile(update, context):
 
 
 async def edit_profile(update, context):
-    reply_keyboard = [['Имя', 'Возраст', 'Пол', 'График'], ['Назад']]
+    global flag_first_event
+    if not flag_first_event:
+        reply_keyboard = [['Имя', 'Возраст', 'Пол', 'График', 'Время'], ['Назад']]
+    else:
+        reply_keyboard = [['Имя', 'Возраст', 'Пол'], ['Назад']]
     markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
 
     await update.message.reply_text("Что отредактировать?", reply_markup=markup)
@@ -212,6 +234,15 @@ async def edit_profile_request(update, context):
         await update.message.reply_text("Сформируйте удобный для вас график получения"
                                         " рекомендаций и уведомлений. Какой график для вас удобен?",
                                         reply_markup=markup)
+    elif message_text == "График":
+        # TODO: Не давать изменить график, если ты уже подписался на advent
+        reply_keyboard = [['Ежедневно'], ['Рабочие', 'Выходные дни']]
+        markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
+        await update.message.reply_text("Сформируйте удобный для вас график получения"
+                                        " рекомендаций и уведомлений. Какой график для вас удобен?",
+                                        reply_markup=markup)
+    elif message_text == "Время":
+        await update.message.reply_text("Укажите время в часах(от 0 до 23), в которое вы хотите получать рекомендации ⌚")
     return PROFILE_EDIT_APPLY_STATE
 
 async def edit_profile_apply(update, context):
@@ -246,6 +277,16 @@ async def edit_profile_apply(update, context):
         else:
             await update.message.reply_text("Выберите один из доступных вариантов")
             return PROFILE_EDIT_APPLY_STATE
+    elif request_type == "Время":
+        if message_text.isdigit():
+            if 0 <= int(message_text) <= 23:
+                context.user_data['time'] = f'{message_text}:00:00'
+            else:
+                await update.message.reply_text("В сутках только 24 часа 😝, попробуйте ещё раз")
+                return PROFILE_EDIT_APPLY_STATE
+        else:
+            await update.message.reply_text("Значение, которое вы ввели не является числом 😜, попробуйте ещё раз")
+            return PROFILE_EDIT_APPLY_STATE
 
     db_sess = db_session.create_session()
     username = str(update.message.from_user.username)
@@ -255,6 +296,7 @@ async def edit_profile_apply(update, context):
     user.Age_Group = context.user_data.get('age', user.Age_Group)
     user.Schedule = context.user_data.get('days', user.Schedule)
     user.Sex = context.user_data.get('sex', user.Sex)
+    user.Time = context.user_data.get('time', user.Time)
 
     db_sess.add(user)
     db_sess.commit()
@@ -307,6 +349,7 @@ def main():
             SEX_STATE: [MessageHandler(condition, sex)],
             AGE_STATE: [MessageHandler(condition, age)],
             SHOW_MENU_STATE: [MessageHandler(filters.Text(["Меню"]), show_menu)],
+            TIME_STATE: [MessageHandler(condition, time_schedule)]
         },
         fallbacks=[
             CommandHandler('stop', stop),
@@ -326,7 +369,7 @@ def main():
                 MessageHandler(filters.Text(["Редактировать данные"]), edit_profile)
             ],
             PROFILE_EDIT_FIELD_STATE: [
-                MessageHandler(filters.Text(["Имя", "Возраст", "Пол", "График"]), edit_profile_request),
+                MessageHandler(filters.Text(["Имя", "Возраст", "Пол", "График", "Время"]), edit_profile_request),
                 MessageHandler(filters.Text(["Назад"]), show_profile)
             ],
             PROFILE_EDIT_APPLY_STATE: [
