@@ -168,8 +168,11 @@ def create_profile(update, context):
 
 
 async def show_menu(update, context):
+    db_sess = db_session.create_session()
+    username = str(update.message.from_user.username)
+    user = db_sess.query(User).filter(User.UserName == username).first()
     reply_keyboard = [['Мой профиль', 'Рекомендации']]
-    if not flag_first_event:
+    if user.Last_Recommendation == 0:
         reply_keyboard.append(['Запустить новогодний адвент по цифровой гигиене'])
     reply_keyboard.extend([
         ['Результаты выполнения'],
