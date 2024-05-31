@@ -1,8 +1,10 @@
 import logging
+from datetime import datetime
 
 from data import db_session
 from data.users import User
-
+from data.recommendations import Recommendation
+from data.status_recommendation import Status_recommendation
 from telegram.ext import Application, MessageHandler, filters, CommandHandler, ConversationHandler, ContextTypes
 from telegram import ReplyKeyboardMarkup, Update, ReplyKeyboardRemove
 
@@ -19,7 +21,7 @@ flag_first_event = False
  AGE_STATE, SHOW_MENU_STATE, TIME_STATE) = range(8)
 
 PROFILE_SHOW_STATE, PROFILE_EDIT_STATE, PROFILE_EDIT_FIELD_STATE, PROFILE_EDIT_APPLY_STATE = range(4)
-
+ADVENT_TIMER_STATE, ADVENT_WORK_STATE = range(2)
 async def help(update, context):
     """Отправляет сообщение когда получена команда /help"""
     await update.message.reply_text("Я умею вести диалог из двух вопросов.")
@@ -168,8 +170,11 @@ def create_profile(update, context):
 
 
 async def show_menu(update, context):
+    db_sess = db_session.create_session()
+    username = str(update.message.from_user.username)
+    user = db_sess.query(User).filter(User.UserName == username).first()
     reply_keyboard = [['Мой профиль', 'Рекомендации']]
-    if not flag_first_event:
+    if user.Last_Recommendation == 0:
         reply_keyboard.append(['Запустить новогодний адвент по цифровой гигиене'])
     reply_keyboard.extend([
         ['Результаты выполнения'],
@@ -308,26 +313,72 @@ async def edit_profile_apply(update, context):
     return PROFILE_SHOW_STATE
 
 
-# TODO: Использовать этот обработчик в сценарии добавления адвента
-# async def first_event(update, conrext):
-#     message_text = update.message.text
-#     reply_keyboard = [['Мой профиль', 'Рекомендации'], ['Результаты выполнения'],
-#                       ['Пройти тест по цифровой гигиене'], ['Пригласить друзей', 'Помощь']]
-#
-#     markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
-#
-#     if message_text == 'Отметить как выполненное':
-#         pass
-#     if message_text == 'Отложить':
-#         pass
-#     if message_text == 'Меню':
-#         await update.message.reply_text(f"Меню",
-#                                         reply_markup=markup)
-#         return MENU_STATE
-#     else:
-#         await update.message.reply_text(f"Неизвестная команда [{message_text}], попробуйте еще раз",
-#                                         reply_markup=markup)
-#         return MENU_STATE
+old_messages = []
+
+
+async def send_recomendation(context):
+    ## 1. Определить пользователя и чат-айди, которому надо прислать рекомендацию
+    ## 2. Из таблицы по статусам_рекомендаций по чат-айди получаем массив ранее отправленных рекомендаций
+    ## 3. Извлекаем идентификатор (он же порядковый номер) последне рекомендации
+    ## 4. Прибавляем к нему единицу для формирования идентификатора следующей рекомендации
+    ## 5. Понять закончился ли адвент или нет:
+    ## 6. Если номер рекомендации равен длине спика рекомендаций, значит адвент закончен, то
+    ##    6.1. Завершить задание и вернуться в меню
+    ## 7. Если адвент еще не закончен, то:
+    ## 8. Из таблицы рекомендаций извлекаем рекомендацию по номеру
+    ## 9. Отправляем рекомендацию пользователю
+    ## 10. Записать в таблицу по статусам строку с отправленной рекомендацией в статусе 0
+    ## 11. Удалить предыдущий мессадж:
+    ##   11.2. Определить из массива ранее отправленных рекомендаци последнюю запись
+    ##   11.3 Взять с нее message_id
+    ##   11.4 Удалить сообщение
+    ## 12. Бросить в пользователя клавиатуру
+    ## 13. Написать обработчики клавиатурных кнопкок в отдельном хендлере (придмать там такойй же алгоритм)
+
+
+    db_sess = db_session.create_session()
+    chat_id = context.job.chat_id
+    kol_rec = db_sess.query(Recommendation).count()
+    list_rec = db_sess.query(Status_recommendation).filter(Status_recommendation.chat_id == chat_id).all()
+    if len(list_rec) != 0:
+        last_rec_id = list_rec[-1].rec_id
+    else:
+        last_rec_id = 0
+    if last_rec_id + 1 > kol_rec:
+        await context.bot.send_message(chat_id=context.job.chat_id, text=f'вы прошли все рекомендации!')
+        context.job_queue.stop()
+        return
+    else:
+        rec_new = db_sess.query(Recommendation).filter(Recommendation.id == last_rec_id + 1).first()
+    stat_rec = Status_recommendation()
+    stat_rec.chat_id = chat_id
+    stat_rec.status = 0
+
+    stat_rec.user_id = 0
+    stat_rec.send_time = datetime.now()
+
+    reply_keyboard = [['Выполнить', 'Отложить']]
+    markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
+    message = await context.bot.send_message(chat_id=context.job.chat_id, text=f'{context.job.data} {last_rec_id + 1} {rec_new.recommendation}!', reply_markup=markup)
+    stat_rec.message_id = message.message_id
+    stat_rec.rec_id = last_rec_id + 1
+    stat_rec.rec_status = 0
+    db_sess.add(stat_rec)
+    db_sess.commit()
+    if last_rec_id != 0:
+        old_message = list_rec[-1].message_id
+        await context.bot.delete_message(chat_id=context.job.chat_id, message_id=old_message)
+
+
+
+async def set_timer(update, context):
+    chat_id = update.message.chat_id
+    time_beg = 5
+    name = update.effective_chat.full_name
+    await context.bot.send_message(chat_id=chat_id, text='Новогодний адвент запущен')
+    # Ставим будильник для функции `callback_alarm()`
+
+    context.job_queue.run_repeating(send_recomendation, 5,  data=name,  chat_id=chat_id)
 
 
 
@@ -381,6 +432,10 @@ def main():
         ]
     )
     application.add_handler(profile_handler)
+    application.add_handler(MessageHandler(filters.Text(["Запустить новогодний адвент по цифровой гигиене"]), set_timer))
+
+
+
 
     # Сценарий обработки кнопки "Запустить новогодний адвент по цифровой гигиене"
     # TODO: Оформить этот код как ConversationHandler как сделано выше с профилем
