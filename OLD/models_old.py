@@ -1,10 +1,10 @@
 from sqlalchemy import BigInteger, String, ForeignKey
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncAttrs, async_sessionmaker
+from sqlalchemy import select
 import asyncio
 
 engine = create_async_engine(url='sqlite+aiosqlite:///db///Baza_TG.sqlite3')
-
 async_session = async_sessionmaker(engine)
 
 
@@ -21,7 +21,7 @@ class Status_recommendation(Base):
     __tablename__ = 'status_recommendations'
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    tg_id = mapped_column(BigInteger)
+    chat_id: Mapped[str] = mapped_column(String(100))
     status: Mapped[str] = mapped_column(String(50))
     rec_status_1: Mapped[str] = mapped_column(String(50))
     rec_status_2: Mapped[str] = mapped_column(String(50))
@@ -54,9 +54,23 @@ class Status_recommendation(Base):
     rec_status_29: Mapped[str] = mapped_column(String(50))
     rec_status_30: Mapped[str] = mapped_column(String(50))
 
+
+class User(Base):
+    __tablename__ = 'user'
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100))
+    age_group: Mapped[str] = mapped_column(String(50))
+    date: Mapped[str] = mapped_column(String(100))
+    schedule: Mapped[str] = mapped_column(String(50))
+    sex: Mapped[str] = mapped_column(String(50))
+    user_name: Mapped[str] = mapped_column(String(100))
+    chat_id: Mapped[str] = mapped_column(String(100))
+
 async def async_main():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
 
 if __name__ == '__main__':
     asyncio.run(async_main())
