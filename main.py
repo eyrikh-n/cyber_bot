@@ -172,7 +172,7 @@ async def show_menu(update, context):
     username = str(update.message.from_user.username)
     user = db_sess.query(User).filter(User.UserName == username).first()
     reply_keyboard = [['Мой профиль', 'Рекомендации']]
-    if user.Last_Recommendation == 0:
+    if user is None:
         reply_keyboard.append(['Запустить новогодний адвент по цифровой гигиене'])
     reply_keyboard.extend([
         ['Результаты выполнения'],
@@ -196,7 +196,7 @@ async def show_profile(update, context):
                   f"💠 Имя - {user.Name} \n"
                   f"💠 График - {user.Schedule} \n"
                   f"💠 Возраст - {user.Age_Group} лет \n"
-                  f"💠 Время выдачи рекомендаций - {user.Time} лет \n")
+                  f"💠 Время выдачи рекомендаций - {user.Time}")
     if user.Sex != 'Пропустить':
         reply_text = reply_text + f"\n💠 Пол {user.Sex}"
 
