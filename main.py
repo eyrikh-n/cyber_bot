@@ -174,7 +174,7 @@ async def show_menu(update, context):
     username = str(update.message.from_user.username)
     user = db_sess.query(User).filter(User.UserName == username).first()
     reply_keyboard = [['Мой профиль', 'Рекомендации']]
-    if user is None:
+    if user:
         reply_keyboard.append(['Запустить новогодний адвент по цифровой гигиене'])
     reply_keyboard.extend([
         ['Результаты выполнения'],
@@ -198,7 +198,7 @@ async def show_profile(update, context):
                   f"💠 Имя - {user.Name} \n"
                   f"💠 График - {user.Schedule} \n"
                   f"💠 Возраст - {user.Age_Group} лет \n"
-                  f"💠 Время выдачи рекомендаций - {user.Time}")
+                  f"💠 Время выдачи рекомендаций - {user.Time} лет \n")
     if user.Sex != 'Пропустить':
         reply_text = reply_text + f"\n💠 Пол {user.Sex}"
 
@@ -345,7 +345,7 @@ async def send_recomendation(context):
     else:
         last_rec_id = 0
     if last_rec_id + 1 > kol_rec:
-        await context.bot.send_message(chat_id=context.job.chat_id, text=f'вы прошли все рекомендации!')
+        await context.bot.send_message(chat_id=context.job.chat_id, text=f'Вы прошли все рекомендации!')
         context.job_queue.stop()
         return
     else:
@@ -359,7 +359,7 @@ async def send_recomendation(context):
 
     reply_keyboard = [['Выполнить', 'Отложить']]
     markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
-    message = await context.bot.send_message(chat_id=context.job.chat_id, text=f'{context.job.data} {last_rec_id + 1} {rec_new.recommendation}!', reply_markup=markup)
+    message = await context.bot.send_message(chat_id=context.job.chat_id, text=f'{context.job.data}, рекомендация № {last_rec_id + 1}: {rec_new.recommendation}!', reply_markup=markup)
     stat_rec.message_id = message.message_id
     stat_rec.rec_id = last_rec_id + 1
     stat_rec.rec_status = 0
