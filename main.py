@@ -1,6 +1,9 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
+from zoneinfo import ZoneInfo
+
+import pytz
 
 from data import db_session
 from data.users import User
@@ -19,10 +22,18 @@ logger = logging.getLogger(__name__)
 flag_first_event = False
 
 (GREETING_STATE, REGISTRATION_STATE, NAME_STATE, SCHEDULE_STATE, SEX_STATE,
- AGE_STATE, SHOW_MENU_STATE, TIME_STATE) = range(8)
+ AGE_STATE, SHOW_MENU_STATE, TIME_STATE, TIMEZONE_STATE) = range(9)
 
 PROFILE_SHOW_STATE, PROFILE_EDIT_STATE, PROFILE_EDIT_FIELD_STATE, PROFILE_EDIT_APPLY_STATE = range(4)
 ADVENT_TIMER_STATE, ADVENT_WORK_STATE = range(2)
+
+
+async def get_timezone_by_utc_offset(utc_offset: timedelta) -> str:
+    current_utc_time = datetime.now(pytz.utc)
+    for tz in map(pytz.timezone, pytz.all_timezones_set):
+        if current_utc_time.astimezone(tz).utcoffset() == utc_offset:
+            return tz.zone
+    return ""
 
 
 async def help(update, context):
@@ -35,10 +46,14 @@ async def stop(update, context):
     return ConversationHandler.END
 
 
-async def start(update, context):
+async def find_user_by_chat_id(chat_id: str) -> Optional[User]:
     db_sess = db_session.create_session()
+    return db_sess.query(User).filter(User.Chat_Id == chat_id).first()
+
+
+async def start(update, context):
     chat_id = str(update.message.chat.id)
-    user = db_sess.query(User).filter(User.Chat_Id == chat_id).first()
+    user = await find_user_by_chat_id(chat_id)
     if user is None:
         reply_keyboard = [['Запустить']]
         markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
@@ -116,17 +131,42 @@ async def time_schedule(update, context):
     time_value = update.message.text
     if time_value.isdigit():
         if 0 <= int(time_value) <= 23:
-            context.user_data['time'] = f'{time_value}:00:00'
-            reply_keyboard = [['Мужской', 'Женский'], ['Пропустить']]
-            markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
-            await update.message.reply_text("Укажите пол", reply_markup=markup)
-            return SEX_STATE
+            context.user_data['time'] = f'{time_value}:00'
+            await update.message.reply_text("Укажите разницу по времени вашего региона относительно Москвы "
+                                            "(в часах, начиная с + или -). "
+                                            "Например, для Новосибирска: +4, для Калининграда: -1")
+            return TIMEZONE_STATE
         else:
             await update.message.reply_text("В сутках только 24 часа 😝, попробуйте ещё раз")
             return TIME_STATE
     else:
         await update.message.reply_text("Значение, которое вы ввели не является числом 😜, попробуйте ещё раз")
         return TIME_STATE
+
+
+async def timezone_schedule(update, context):
+    if update.message.text[0] != "+" and update.message.text[0] != "-":
+        await update.message.reply_text("Разница во времени должна начинаться либо с +, либо с -. Попробуйте еще раз.")
+        return TIMEZONE_STATE
+
+    if update.message.text[1:].isdigit():
+        moscow_offset_value = update.message.text.replace("+", "")
+        utc_offset_hours = timedelta(hours=3 + int(moscow_offset_value))
+        user_timezone = await get_timezone_by_utc_offset(utc_offset_hours)
+        if user_timezone == "":
+            await update.message.reply_text(f"Не удалось определить часовой пояс по МСК{update.message.text}, "
+                                            f"попробуйте еще раз ввести разницу по часам с Москвой.")
+            return TIMEZONE_STATE
+        else:
+            context.user_data['timezone'] = user_timezone
+
+            reply_keyboard = [['Мужской', 'Женский'], ['Пропустить']]
+            markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
+            await update.message.reply_text("Укажите пол", reply_markup=markup)
+            return SEX_STATE
+    else:
+        await update.message.reply_text("Значение, которое вы ввели не является числом 😜, попробуйте ещё раз")
+        return TIMEZONE_STATE
 
 
 async def sex(update, context):
@@ -169,6 +209,7 @@ def create_profile(update, context):
     user.UserName = str(update.message.from_user.username)
     user.Chat_Id = str(update.message.chat.id)
     user.Time = context.user_data['time']
+    user.Timezone = context.user_data['timezone']
     db_sess.add(user)
     db_sess.commit()
 
@@ -319,14 +360,6 @@ async def edit_profile_apply(update, context):
     return PROFILE_SHOW_STATE
 
 
-old_messages = []
-
-
-async def find_user_by_chat_id(chat_id: str) -> Optional[User]:
-    db_sess = db_session.create_session()
-    return db_sess.query(User).filter(User.Chat_Id == chat_id).first()
-
-
 async def send_recommendation(context):
     chat_id = context.job.chat_id
 
@@ -414,10 +447,11 @@ def main():
             REGISTRATION_STATE: [MessageHandler(condition, registration)],
             NAME_STATE: [MessageHandler(condition, name)],
             SCHEDULE_STATE: [MessageHandler(condition, schedule)],
+            TIME_STATE: [MessageHandler(condition, time_schedule)],
+            TIMEZONE_STATE: [MessageHandler(condition, timezone_schedule)],
             SEX_STATE: [MessageHandler(condition, sex)],
             AGE_STATE: [MessageHandler(condition, age)],
-            SHOW_MENU_STATE: [MessageHandler(filters.Text(["Меню"]), show_menu)],
-            TIME_STATE: [MessageHandler(condition, time_schedule)]
+            SHOW_MENU_STATE: [MessageHandler(filters.Text(["Меню"]), show_menu)]
         },
         fallbacks=[
             CommandHandler('stop', stop),
