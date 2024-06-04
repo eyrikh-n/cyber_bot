@@ -3,3 +3,4 @@ SQLAlchemy-serializer==1.4.1
 python-telegram-bot==21.0.1
 flask_login==0.6.3
 python-telegram-bot[job-queue]==21.0.1
+pytz==2024.1

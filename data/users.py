@@ -21,3 +21,4 @@ class User(SqlAlchemyBase, UserMixin, SerializerMixin):
     UserName = sqlalchemy.Column(sqlalchemy.String, nullable=True)
     Chat_Id = sqlalchemy.Column(sqlalchemy.String, nullable=True)
     Time = sqlalchemy.Column(sqlalchemy.String, nullable=True)
+    Timezone = sqlalchemy.Column(sqlalchemy.String, nullable=True)
