@@ -21,7 +21,6 @@ logging.basicConfig(
 db_session.global_init("db/data_base.db")
 logger = logging.getLogger(__name__)
 
-
 (GREETING_STATE, REGISTRATION_STATE, NAME_STATE, SCHEDULE_STATE, SEX_STATE,
  AGE_STATE, SHOW_MENU_STATE, TIME_STATE, TIMEZONE_STATE) = range(9)
 
@@ -29,6 +28,7 @@ PROFILE_SHOW_STATE, PROFILE_EDIT_STATE, PROFILE_EDIT_FIELD_STATE, PROFILE_EDIT_A
 ADVENT_TIMER_STATE, ADVENT_WORK_STATE = range(2)
 
 REC_BUTTON_DONE, REC_BUTTON_SKIP = "rec_button_done", "rec_button_skip"
+
 
 async def get_timezone_by_utc_offset(utc_offset: timedelta) -> str:
     current_utc_time = datetime.now(pytz.utc)
@@ -427,6 +427,7 @@ async def send_recommendation(context):
     # Если отправленная рекомендация не первая, то подчищаем в чате предыдущую рекомендацию
     if last_rec_id > 0:
         old_message = sent_recommendations[-1].message_id
+        # TODO: Сообщения может не быть, получим BadRequest в логах
         await context.bot.delete_message(chat_id=chat_id, message_id=old_message)
 
 
@@ -434,20 +435,42 @@ async def done_recommendation(update: Update, context: ContextTypes.DEFAULT_TYPE
     query = update.callback_query
     await query.answer()
 
-    del_idx = query.data.find(":")+1
+    chat_id = query.message.chat_id
+    del_idx = query.data.find(":") + 1
     rec_id = int(query.data[del_idx:])
 
-    await context.bot.send_message(chat_id=query.message.chat_id, text=f"Выполнена рекомендация №: {rec_id}")
+    db_sess = db_session.create_session()
+    rec = (db_sess.query(Status_recommendation).
+           filter(Status_recommendation.chat_id == chat_id, Status_recommendation.rec_id == rec_id).
+           first())
+
+    rec.rec_status = "1"
+    db_sess.add(rec)
+    db_sess.commit()
+
+    await query.delete_message()
+    await context.bot.send_message(chat_id=chat_id, text=f"Выполнена рекомендация №: {rec_id}")
 
 
 async def skip_recommendation(update, context):
     query = update.callback_query
     await query.answer()
 
-    del_idx = query.data.find(":")+1
+    chat_id = query.message.chat_id
+    del_idx = query.data.find(":") + 1
     rec_id = int(query.data[del_idx:])
 
-    await context.bot.send_message(chat_id=query.message.chat_id, text=f"Отложена рекомендация №: {rec_id}")
+    db_sess = db_session.create_session()
+    rec = (db_sess.query(Status_recommendation).
+           filter(Status_recommendation.chat_id == chat_id, Status_recommendation.rec_id == rec_id).
+           first())
+
+    rec.rec_status = "2"
+    db_sess.add(rec)
+    db_sess.commit()
+
+    await query.delete_message()
+    await context.bot.send_message(chat_id=chat_id, text=f"Отложена рекомендация №: {rec_id}")
 
 
 async def run_recommendation_job(context, user):
