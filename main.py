@@ -1,7 +1,6 @@
 import logging
 from datetime import datetime, timedelta
 from typing import Optional
-from zoneinfo import ZoneInfo
 
 import pytz
 
@@ -239,13 +238,13 @@ async def show_profile(update, context):
     username = str(update.message.from_user.username)
     user = db_sess.query(User).filter(User.UserName == username).first()
 
-    reply_text = ("Профиль (новый) 🔽 \n"
+    reply_text = ("Профиль 🔽 \n"
                   f"💠 Имя - {user.Name} \n"
                   f"💠 График - {user.Schedule} \n"
                   f"💠 Возраст - {user.Age_Group} лет \n"
-                  f"💠 Время выдачи рекомендаций - {user.Time} лет \n")
+                  f"💠 Время выдачи рекомендаций - {user.Time} \n")
     if user.Sex != 'Пропустить':
-        reply_text = reply_text + f"\n💠 Пол {user.Sex}"
+        reply_text = reply_text + f"💠 Пол - {user.Sex}"
 
     await update.message.reply_text(reply_text, reply_markup=markup)
     return PROFILE_EDIT_STATE
@@ -332,7 +331,7 @@ async def edit_profile_apply(update, context):
     elif request_type == "Время":
         if message_text.isdigit():
             if 0 <= int(message_text) <= 23:
-                context.user_data['time'] = f'{message_text}:00:00'
+                context.user_data['time'] = f'{message_text}:00'
             else:
                 await update.message.reply_text("В сутках только 24 часа 😝, попробуйте ещё раз")
                 return PROFILE_EDIT_APPLY_STATE
@@ -424,7 +423,6 @@ async def send_recommendation(context):
 
 async def set_timer(update, context):
     chat_id = update.message.chat_id
-    time_beg = 5
     name = update.effective_chat.full_name
     await context.bot.send_message(chat_id=chat_id, text='Новогодний адвент запущен')
     # Ставим будильник для функции `callback_alarm()`
