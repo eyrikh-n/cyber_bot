@@ -398,7 +398,7 @@ async def send_recommendation(context):
     reply_keyboard = [['Выполнить', 'Отложить']]
     markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
     message = await context.bot.send_message(chat_id=chat_id,
-                                             text=f'{context.job.data}, '
+                                             text=f'{user.Name}, '
                                                   f'рекомендация № {new_req_id}: '
                                                   f'{rec_new.recommendation}!',
                                              reply_markup=markup)
