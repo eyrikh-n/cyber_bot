@@ -5,19 +5,20 @@ from zoneinfo import ZoneInfo
 
 import pytz
 from sqlalchemy import func
-
+import telegram
 from data import db_session
 from data.users import User
 from data.recommendations import Recommendation
 from data.status_recommendation import Status_recommendation
 from telegram.ext import Application, MessageHandler, filters, CommandHandler, ConversationHandler, CallbackContext, \
-    CallbackQueryHandler, ContextTypes
+    CallbackQueryHandler, ContextTypes, Updater
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton, Update
 
 BOT_TOKEN = '6522784356:AAHB7lKSBukJDq-Tq3SAB9mxql95Cn9Dutg'
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG
 )
+bot = telegram.Bot(token=BOT_TOKEN)
 db_session.global_init("db/data_base.db")
 logger = logging.getLogger(__name__)
 
@@ -59,6 +60,7 @@ async def start(update, context):
     if user is None:
         reply_keyboard = [['Запустить']]
         markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
+        await bot.send_photo(chat_id=update.message.chat.id, photo='https://img.freepik.com/free-vector/flat-background-for-safer-internet-day_23-2151127509.jpg?w=2000&t=st=1717694697~exp=1717695297~hmac=edd5b2ffe89d8b2901334e3df3190bffc0ed426ca69706be691a573487acdd33')
         await update.message.reply_text(
             "Добрый день. Данный бот поможет вам за N дней усилить защиту ваших аккаунтов, данных, а"
             " также обучит основам обеспечения цифровой гигиены. 🤖 Вам достаточно ежедневно выполнять по"
@@ -68,6 +70,8 @@ async def start(update, context):
         reply_keyboard = [['Меню']]
         markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
 
+        await bot.send_photo(chat_id=update.message.chat.id,
+                             photo='https://img.freepik.com/free-vector/technical-support-service-site_80328-68.jpg?t=st=1717695596~exp=1717699196~hmac=419f0dc67a3bb3e7fecfe47e9e64615daaee5692bdb3c828e3c2dae5265d1376&w=2000')
         await update.message.reply_text(
             f"Добрый день, {user.Name}, давно не виделись! Воспользуйтесь меню.", reply_markup=markup)
         return SHOW_MENU_STATE
@@ -234,6 +238,7 @@ def create_profile(update, context):
 
 
 async def show_menu(update, context):
+
     db_sess = db_session.create_session()
     username = str(update.message.from_user.username)
     user = db_sess.query(User).filter(User.UserName == username).first()
@@ -246,6 +251,8 @@ async def show_menu(update, context):
         ['Пригласить друзей', 'Помощь']])
 
     markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
+    await bot.send_photo(chat_id=update.message.chat.id,
+                         photo="https://img.freepik.com/free-vector/tiny-business-people-with-digital-devices-big-globe-surfing-internet_335657-2449.jpg?t=st=1717695852~exp=1717699452~hmac=5d5ae3568da44133edf2c0a7f6c0a899ee29ad8db05a4444b961a293ae245a8e&w=2000")
     await update.message.reply_text("Меню", reply_markup=markup)
     return ConversationHandler.END
 
