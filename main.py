@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 PROFILE_SHOW_STATE, PROFILE_EDIT_STATE, PROFILE_EDIT_FIELD_STATE, PROFILE_EDIT_APPLY_STATE = range(4)
 ADVENT_TIMER_STATE, ADVENT_WORK_STATE = range(2)
 
-REC_BUTTON_DONE, REC_BUTTON_SKIP = "rec_button_done", "rec_button_skip"
+REC_BUTTON_DONE, REC_BUTTON_SKIP, REC_BUTTON_REPORT = "rec_button_done", "rec_button_skip", "rec_button_report"
 
 
 async def get_timezone_by_utc_offset(utc_offset: timedelta) -> str:
@@ -464,6 +464,57 @@ async def send_recommendation(context):
         await context.bot.delete_message(chat_id=chat_id, message_id=old_message)
 
 
+async def send_notification(context: ContextTypes.DEFAULT_TYPE):
+    chat_id = context.job.chat_id
+
+    user = await find_user_by_chat_id(chat_id)
+    if user is None:
+        await context.bot.send_message(chat_id=chat_id, text='Такой пользователь не найден, адвент будет остановлен!')
+        context.job.schedule_removal()
+        return
+
+    db_sess = db_session.create_session()
+    sent_recommendations = db_sess.query(Status_recommendation).filter(
+        Status_recommendation.user_id == user.User_ID).all()
+
+    count_uncomleted_recommendations = 0
+    result = ''
+
+    for rec in sent_recommendations:
+        if rec.rec_status == '2':
+            count_uncomleted_recommendations += 1
+            recomm = db_sess.query(Recommendation).filter(Recommendation.id == rec.rec_id).first()
+            recc = recomm.recommendation
+            result += f'День {rec.rec_id}. {recc}\n'
+
+    if result == '':
+        context.job.schedule_removal()
+        return
+
+    result = f'Не выполнено {count_uncomleted_recommendations} рекомендаций:\n' + result
+    keyboard = [
+        [
+            InlineKeyboardButton("Сообщить о выполнении", callback_data=f"{REC_BUTTON_REPORT}")
+        ]
+    ]
+    markup = InlineKeyboardMarkup(keyboard)
+
+    # Отправляем рекомендацию
+    message = await context.bot.send_message(chat_id=chat_id,
+                                             text=result,
+                                             reply_markup=markup)
+
+    # Если отправленная рекомендация не первая, то подчищаем в чате предыдущую рекомендацию
+    # if last_rec_id > 0:
+    #     old_message = sent_recommendations[-1].message_id
+    #     # TODO: Сообщения может не быть, получим BadRequest в логах
+    #     await context.bot.delete_message(chat_id=chat_id, message_id=old_message)
+
+
+async def send_results(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    pass
+
+
 async def done_recommendation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -511,6 +562,11 @@ async def run_recommendation_job(context, user):
     context.job_queue.run_repeating(send_recommendation, 5, data=user.Name, chat_id=user.Chat_Id)
 
 
+async def run_notification_job(context, user):
+    # TODO: Нужно запускать в зависимости от временных настроек пользователя
+    context.job_queue.run_repeating(send_notification, 10, data=user.Name, chat_id=user.Chat_Id)
+
+
 async def set_timer(update, context):
     chat_id = update.message.chat_id
     user = await find_user_by_chat_id(chat_id)
@@ -519,6 +575,7 @@ async def set_timer(update, context):
         return
 
     await context.bot.send_message(chat_id=chat_id, text='Новогодний адвент запущен')
+    await run_notification_job(context, user)
     await run_recommendation_job(context, user)
 
 
@@ -602,6 +659,8 @@ def main():
 
     application.add_handler(CallbackQueryHandler(done_recommendation, pattern=f"^{REC_BUTTON_DONE}:\\d+$"))
     application.add_handler(CallbackQueryHandler(skip_recommendation, pattern=f"^{REC_BUTTON_SKIP}:\\d+$"))
+
+    application.add_handler(CallbackQueryHandler(send_results, pattern=f"^{REC_BUTTON_REPORT}"))
 
     # Сценарий обработки кнопки "Запустить новогодний адвент по цифровой гигиене"
     # TODO: Оформить этот код как ConversationHandler как сделано выше с профилем
