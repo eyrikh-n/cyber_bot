@@ -22,7 +22,7 @@ db_session.global_init("db/data_base.db")
 logger = logging.getLogger(__name__)
 
 (GREETING_STATE, REGISTRATION_STATE, NAME_STATE, SCHEDULE_STATE, SEX_STATE,
- AGE_STATE, SHOW_MENU_STATE, TIME_STATE, TIMEZONE_STATE) = range(9)
+ AGE_STATE, SHOW_MENU_STATE, TIME_STATE, TIMEZONE_STATE, PERIOD_STATE) = range(10)
 
 PROFILE_SHOW_STATE, PROFILE_EDIT_STATE, PROFILE_EDIT_FIELD_STATE, PROFILE_EDIT_APPLY_STATE = range(4)
 ADVENT_TIMER_STATE, ADVENT_WORK_STATE = range(2)
@@ -134,16 +134,32 @@ async def time_schedule(update, context):
     if time_value.isdigit():
         if 0 <= int(time_value) <= 23:
             context.user_data['time'] = f'{time_value}:00'
-            await update.message.reply_text("Укажите разницу по времени вашего региона относительно Москвы "
-                                            "(в часах, начиная с + или -). "
-                                            "Например, для Новосибирска: +4, для Калининграда: -1")
-            return TIMEZONE_STATE
+            await update.message.reply_text("Укажите интервал, в который вам будут присылаться напоминания"
+                                            "о прохождении рекомендаций в днях. Например: каждые 2 дня.")
+            return PERIOD_STATE
         else:
             await update.message.reply_text("В сутках только 24 часа 😝, попробуйте ещё раз")
             return TIME_STATE
     else:
         await update.message.reply_text("Значение, которое вы ввели не является числом 😜, попробуйте ещё раз")
         return TIME_STATE
+
+
+async def period(update, context):
+    period_value = update.message.text
+    if period_value.isdigit():
+        if 1 <= int(period_value) <= 30:
+            context.user_data['period'] = str(period_value)
+            await update.message.reply_text("Укажите разницу по времени вашего региона относительно Москвы "
+                                            "(в часах, начиная с + или -). "
+                                            "Например, для Новосибирска: +4, для Калининграда: -1")
+            return TIMEZONE_STATE
+        else:
+            await update.message.reply_text("Вы указали слишком большой или маленький диапазон. Попробуйте ещё раз.")
+            return PERIOD_STATE
+    else:
+        await update.message.reply_text("Значение, которое вы ввели не является числом 😜, попробуйте ещё раз")
+        return PERIOD_STATE
 
 
 async def timezone_schedule(update, context):
@@ -212,6 +228,7 @@ def create_profile(update, context):
     user.Chat_Id = str(update.message.chat.id)
     user.Time = context.user_data['time']
     user.Timezone = context.user_data['timezone']
+    user.Period = str(context.user_data['period'])
     db_sess.add(user)
     db_sess.commit()
 
@@ -245,20 +262,22 @@ async def show_profile(update, context):
                   f"💠 Имя - {user.Name} \n"
                   f"💠 График - {user.Schedule} \n"
                   f"💠 Возраст - {user.Age_Group} лет \n"
-                  f"💠 Время выдачи рекомендаций - {user.Time} лет \n")
+                  f"💠 Время выдачи рекомендаций - {user.Time}\n")
     if user.Sex != 'Пропустить':
-        reply_text = reply_text + f"\n💠 Пол {user.Sex}"
+        reply_text = reply_text + f"💠 Пол {user.Sex}"
 
     await update.message.reply_text(reply_text, reply_markup=markup)
     return PROFILE_EDIT_STATE
 
 
 async def edit_profile(update, context):
-    global flag_first_event
-    if not flag_first_event:
-        reply_keyboard = [['Имя', 'Возраст', 'Пол', 'График', 'Время'], ['Назад']]
+    db_sess = db_session.create_session()
+    user = db_sess.query(User).filter(User.Chat_Id == str(update.message.chat.id)).first()
+    sent_recommendations = db_sess.query(Status_recommendation).filter(Status_recommendation.user_id == user.User_ID).all()
+    if len(sent_recommendations) == 0:
+        reply_keyboard = [['Имя', 'Возраст', 'Пол', 'График', 'Время'], ["Период напоминаний", 'Назад']]
     else:
-        reply_keyboard = [['Имя', 'Возраст', 'Пол'], ['Назад']]
+        reply_keyboard = [['Имя', 'Возраст', 'Пол', "Период напоминаний"], ['Назад']]
     markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
 
     await update.message.reply_text("Что отредактировать?", reply_markup=markup)
@@ -296,6 +315,9 @@ async def edit_profile_request(update, context):
     elif message_text == "Время":
         await update.message.reply_text(
             "Укажите время в часах(от 0 до 23), в которое вы хотите получать рекомендации ⌚")
+    elif message_text == "Период напоминаний":
+        await update.message.reply_text("Укажите интервал, в который вам будут присылаться напоминания"
+                                        "о прохождении рекомендаций в днях. Например: каждые 2 дня.")
     return PROFILE_EDIT_APPLY_STATE
 
 
@@ -341,6 +363,16 @@ async def edit_profile_apply(update, context):
         else:
             await update.message.reply_text("Значение, которое вы ввели не является числом 😜, попробуйте ещё раз")
             return PROFILE_EDIT_APPLY_STATE
+    elif request_type == "Период напоминаний":
+        if message_text.isdigit():
+            if 1 <= int(message_text) <= 30:
+                context.user_data['period'] = str(message_text)
+            else:
+                await update.message.reply_text("Вы выбрали слишком большой или маленький период. Попробуйте ещё раз.")
+                return PROFILE_EDIT_APPLY_STATE
+        else:
+            await update.message.reply_text("Значение, которое вы ввели не является числом 😜, попробуйте ещё раз")
+            return PROFILE_EDIT_APPLY_STATE
 
     db_sess = db_session.create_session()
     username = str(update.message.from_user.username)
@@ -351,6 +383,7 @@ async def edit_profile_apply(update, context):
     user.Schedule = context.user_data.get('days', user.Schedule)
     user.Sex = context.user_data.get('sex', user.Sex)
     user.Time = context.user_data.get('time', user.Time)
+    user.Period = context.user_data.get('period', user.Period)
 
     db_sess.add(user)
     db_sess.commit()
@@ -530,6 +563,7 @@ def main():
             TIMEZONE_STATE: [MessageHandler(condition, timezone_schedule)],
             SEX_STATE: [MessageHandler(condition, sex)],
             AGE_STATE: [MessageHandler(condition, age)],
+            PERIOD_STATE: [MessageHandler(condition, period)],
             SHOW_MENU_STATE: [MessageHandler(filters.Text(["Меню"]), show_menu)]
         },
         fallbacks=[
@@ -550,7 +584,7 @@ def main():
                 MessageHandler(filters.Text(["Редактировать данные"]), edit_profile)
             ],
             PROFILE_EDIT_FIELD_STATE: [
-                MessageHandler(filters.Text(["Имя", "Возраст", "Пол", "График", "Время"]), edit_profile_request),
+                MessageHandler(filters.Text(["Имя", "Возраст", "Пол", "График", "Время", "Период напоминаний"]), edit_profile_request),
                 MessageHandler(filters.Text(["Назад"]), show_profile)
             ],
             PROFILE_EDIT_APPLY_STATE: [
