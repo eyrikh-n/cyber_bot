@@ -1,48 +1,44 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
+from typing import Optional
+from zoneinfo import ZoneInfo
 
+import pytz
+from sqlalchemy import func
+import telegram
 from data import db_session
 from data.users import User
 from data.recommendations import Recommendation
 from data.status_recommendation import Status_recommendation
-from telegram.ext import Application, MessageHandler, filters, CommandHandler, ConversationHandler, ContextTypes
-from telegram import ReplyKeyboardMarkup, Update, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, MessageHandler, filters, CommandHandler, ConversationHandler, CallbackContext, \
+    CallbackQueryHandler, ContextTypes, Updater
+from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton, Update
 
-BOT_TOKEN = '6425799983:AAGUzo77JZPhT20_6SVFfpoD5DMcqzNE07M'
+BOT_TOKEN = '6522784356:AAHB7lKSBukJDq-Tq3SAB9mxql95Cn9Dutg'
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG
 )
+bot = telegram.Bot(token=BOT_TOKEN)
 db_session.global_init("db/data_base.db")
 logger = logging.getLogger(__name__)
 
-flag_first_event = False
-query_data = ''
-
 (GREETING_STATE, REGISTRATION_STATE, NAME_STATE, SCHEDULE_STATE, SEX_STATE,
- AGE_STATE, SHOW_MENU_STATE, TIME_STATE) = range(8)
+ AGE_STATE, SHOW_MENU_STATE, TIME_STATE, TIMEZONE_STATE, PERIOD_STATE) = range(10)
 
 PROFILE_SHOW_STATE, PROFILE_EDIT_STATE, PROFILE_EDIT_FIELD_STATE, PROFILE_EDIT_APPLY_STATE = range(4)
 ADVENT_TIMER_STATE, ADVENT_WORK_STATE = range(2)
-RECOMEND  = range(1)
-TEST_DG = range(1)
-const = 29
+
+REC_BUTTON_DONE, REC_BUTTON_SKIP, REC_BUTTON_REPORT = "rec_button_done", "rec_button_skip", "rec_button_report"
 
 
-
-class color:
-   PURPLE = '\033[95m'
-   CYAN = '\033[96m'
-   DARKCYAN = '\033[36m'
-   BLUE = '\033[94m'
-   GREEN = '\033[92m'
-   YELLOW = '\033[93m'
-   RED = '\033[91m'
-   BOLD = '\033[1m'
-   UNDERLINE = '\033[4m'
-   END = '\033[0m'
+async def get_timezone_by_utc_offset(utc_offset: timedelta) -> str:
+    current_utc_time = datetime.now(pytz.utc)
+    for tz in map(pytz.timezone, pytz.all_timezones_set):
+        if current_utc_time.astimezone(tz).utcoffset() == utc_offset:
+            return tz.zone
+    return ""
 
 
-# print(color.BOLD + 'Hello, World!' + color.END)
 async def help(update, context):
     """Отправляет сообщение когда получена команда /help"""
     await update.message.reply_text("Я умею вести диалог из двух вопросов.")
@@ -53,13 +49,18 @@ async def stop(update, context):
     return ConversationHandler.END
 
 
-async def start(update, context):
+async def find_user_by_chat_id(chat_id: str) -> Optional[User]:
     db_sess = db_session.create_session()
+    return db_sess.query(User).filter(User.Chat_Id == chat_id).first()
+
+
+async def start(update, context):
     chat_id = str(update.message.chat.id)
-    user = db_sess.query(User).filter(User.Chat_Id == chat_id).first()
+    user = await find_user_by_chat_id(chat_id)
     if user is None:
         reply_keyboard = [['Запустить']]
         markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
+        await bot.send_photo(chat_id=update.message.chat.id, photo='https://img.freepik.com/free-vector/flat-background-for-safer-internet-day_23-2151127509.jpg?w=2000&t=st=1717694697~exp=1717695297~hmac=edd5b2ffe89d8b2901334e3df3190bffc0ed426ca69706be691a573487acdd33')
         await update.message.reply_text(
             "Добрый день. Данный бот поможет вам за N дней усилить защиту ваших аккаунтов, данных, а"
             " также обучит основам обеспечения цифровой гигиены. 🤖 Вам достаточно ежедневно выполнять по"
@@ -69,6 +70,8 @@ async def start(update, context):
         reply_keyboard = [['Меню']]
         markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
 
+        await bot.send_photo(chat_id=update.message.chat.id,
+                             photo='https://img.freepik.com/free-vector/technical-support-service-site_80328-68.jpg?t=st=1717695596~exp=1717699196~hmac=419f0dc67a3bb3e7fecfe47e9e64615daaee5692bdb3c828e3c2dae5265d1376&w=2000')
         await update.message.reply_text(
             f"Добрый день, {user.Name}, давно не виделись! Воспользуйтесь меню.", reply_markup=markup)
         return SHOW_MENU_STATE
@@ -122,7 +125,8 @@ async def schedule(update, context):
     days_value = update.message.text
     if days_value == "Ежедневно" or days_value == "Рабочие дни" or days_value == "Выходные дни":
         context.user_data['days'] = days_value
-        await update.message.reply_text("Укажите время в часах(от 0 до 23), в которое вы хотите получать рекомендации ⌚")
+        await update.message.reply_text(
+            "Укажите время в часах(от 0 до 23), в которое вы хотите получать рекомендации ⌚")
         return TIME_STATE
     else:
         await update.message.reply_text("Неизвестное значение, выберите график из предложенных вариантов")
@@ -133,17 +137,58 @@ async def time_schedule(update, context):
     time_value = update.message.text
     if time_value.isdigit():
         if 0 <= int(time_value) <= 23:
-            context.user_data['time'] = f'{time_value}:00:00'
-            reply_keyboard = [['Мужской', 'Женский'], ['Пропустить']]
-            markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
-            await update.message.reply_text("Укажите пол", reply_markup=markup)
-            return SEX_STATE
+            context.user_data['time'] = f'{time_value}:00'
+            await update.message.reply_text("Укажите интервал, в который вам будут присылаться напоминания"
+                                            "о прохождении рекомендаций в днях. Например: каждые 2 дня.")
+            return PERIOD_STATE
         else:
             await update.message.reply_text("В сутках только 24 часа 😝, попробуйте ещё раз")
             return TIME_STATE
     else:
         await update.message.reply_text("Значение, которое вы ввели не является числом 😜, попробуйте ещё раз")
         return TIME_STATE
+
+
+async def period(update, context):
+    period_value = update.message.text
+    if period_value.isdigit():
+        if 1 <= int(period_value) <= 30:
+            context.user_data['period'] = str(period_value)
+            await update.message.reply_text("Укажите разницу по времени вашего региона относительно Москвы "
+                                            "(в часах, начиная с + или -). "
+                                            "Например, для Новосибирска: +4, для Калининграда: -1")
+            return TIMEZONE_STATE
+        else:
+            await update.message.reply_text("Вы указали слишком большой или маленький диапазон. Попробуйте ещё раз.")
+            return PERIOD_STATE
+    else:
+        await update.message.reply_text("Значение, которое вы ввели не является числом 😜, попробуйте ещё раз")
+        return PERIOD_STATE
+
+
+async def timezone_schedule(update, context):
+    if update.message.text[0] != "+" and update.message.text[0] != "-":
+        await update.message.reply_text("Разница во времени должна начинаться либо с +, либо с -. Попробуйте еще раз.")
+        return TIMEZONE_STATE
+
+    if update.message.text[1:].isdigit():
+        moscow_offset_value = update.message.text.replace("+", "")
+        utc_offset_hours = timedelta(hours=3 + int(moscow_offset_value))
+        user_timezone = await get_timezone_by_utc_offset(utc_offset_hours)
+        if user_timezone == "":
+            await update.message.reply_text(f"Не удалось определить часовой пояс по МСК{update.message.text}, "
+                                            f"попробуйте еще раз ввести разницу по часам с Москвой.")
+            return TIMEZONE_STATE
+        else:
+            context.user_data['timezone'] = user_timezone
+
+            reply_keyboard = [['Мужской', 'Женский'], ['Пропустить']]
+            markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
+            await update.message.reply_text("Укажите пол", reply_markup=markup)
+            return SEX_STATE
+    else:
+        await update.message.reply_text("Значение, которое вы ввели не является числом 😜, попробуйте ещё раз")
+        return TIMEZONE_STATE
 
 
 async def sex(update, context):
@@ -186,16 +231,19 @@ def create_profile(update, context):
     user.UserName = str(update.message.from_user.username)
     user.Chat_Id = str(update.message.chat.id)
     user.Time = context.user_data['time']
+    user.Timezone = context.user_data['timezone']
+    user.Period = str(context.user_data['period'])
     db_sess.add(user)
     db_sess.commit()
 
 
 async def show_menu(update, context):
+
     db_sess = db_session.create_session()
     username = str(update.message.from_user.username)
     user = db_sess.query(User).filter(User.UserName == username).first()
     reply_keyboard = [['Мой профиль', 'Рекомендации']]
-    if user.Last_Recommendation == 0:
+    if user:
         reply_keyboard.append(['Запустить новогодний адвент по цифровой гигиене'])
     reply_keyboard.extend([
         ['Результаты выполнения'],
@@ -203,6 +251,8 @@ async def show_menu(update, context):
         ['Пригласить друзей', 'Помощь']])
 
     markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
+    await bot.send_photo(chat_id=update.message.chat.id,
+                         photo="https://img.freepik.com/free-vector/tiny-business-people-with-digital-devices-big-globe-surfing-internet_335657-2449.jpg?t=st=1717695852~exp=1717699452~hmac=5d5ae3568da44133edf2c0a7f6c0a899ee29ad8db05a4444b961a293ae245a8e&w=2000")
     await update.message.reply_text("Меню", reply_markup=markup)
     return ConversationHandler.END
 
@@ -219,20 +269,22 @@ async def show_profile(update, context):
                   f"💠 Имя - {user.Name} \n"
                   f"💠 График - {user.Schedule} \n"
                   f"💠 Возраст - {user.Age_Group} лет \n"
-                  f"💠 Время выдачи рекомендаций - {user.Time} лет \n")
+                  f"💠 Время выдачи рекомендаций - {user.Time}\n")
     if user.Sex != 'Пропустить':
-        reply_text = reply_text + f"\n💠 Пол {user.Sex}"
+        reply_text = reply_text + f"💠 Пол {user.Sex}"
 
     await update.message.reply_text(reply_text, reply_markup=markup)
     return PROFILE_EDIT_STATE
 
 
 async def edit_profile(update, context):
-    global flag_first_event
-    if not flag_first_event:
-        reply_keyboard = [['Имя', 'Возраст', 'Пол', 'График', 'Время'], ['Назад']]
+    db_sess = db_session.create_session()
+    user = db_sess.query(User).filter(User.Chat_Id == str(update.message.chat.id)).first()
+    sent_recommendations = db_sess.query(Status_recommendation).filter(Status_recommendation.user_id == user.User_ID).all()
+    if len(sent_recommendations) == 0:
+        reply_keyboard = [['Имя', 'Возраст', 'Пол', 'График', 'Время'], ["Период напоминаний", 'Назад']]
     else:
-        reply_keyboard = [['Имя', 'Возраст', 'Пол'], ['Назад']]
+        reply_keyboard = [['Имя', 'Возраст', 'Пол', "Период напоминаний"], ['Назад']]
     markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
 
     await update.message.reply_text("Что отредактировать?", reply_markup=markup)
@@ -268,8 +320,13 @@ async def edit_profile_request(update, context):
                                         " рекомендаций и уведомлений. Какой график для вас удобен?",
                                         reply_markup=markup)
     elif message_text == "Время":
-        await update.message.reply_text("Укажите время в часах(от 0 до 23), в которое вы хотите получать рекомендации ⌚")
+        await update.message.reply_text(
+            "Укажите время в часах(от 0 до 23), в которое вы хотите получать рекомендации ⌚")
+    elif message_text == "Период напоминаний":
+        await update.message.reply_text("Укажите интервал, в который вам будут присылаться напоминания"
+                                        "о прохождении рекомендаций в днях. Например: каждые 2 дня.")
     return PROFILE_EDIT_APPLY_STATE
+
 
 async def edit_profile_apply(update, context):
     message_text = update.message.text
@@ -313,6 +370,16 @@ async def edit_profile_apply(update, context):
         else:
             await update.message.reply_text("Значение, которое вы ввели не является числом 😜, попробуйте ещё раз")
             return PROFILE_EDIT_APPLY_STATE
+    elif request_type == "Период напоминаний":
+        if message_text.isdigit():
+            if 1 <= int(message_text) <= 30:
+                context.user_data['period'] = str(message_text)
+            else:
+                await update.message.reply_text("Вы выбрали слишком большой или маленький период. Попробуйте ещё раз.")
+                return PROFILE_EDIT_APPLY_STATE
+        else:
+            await update.message.reply_text("Значение, которое вы ввели не является числом 😜, попробуйте ещё раз")
+            return PROFILE_EDIT_APPLY_STATE
 
     db_sess = db_session.create_session()
     username = str(update.message.from_user.username)
@@ -323,6 +390,7 @@ async def edit_profile_apply(update, context):
     user.Schedule = context.user_data.get('days', user.Schedule)
     user.Sex = context.user_data.get('sex', user.Sex)
     user.Time = context.user_data.get('time', user.Time)
+    user.Period = context.user_data.get('period', user.Period)
 
     db_sess.add(user)
     db_sess.commit()
@@ -334,145 +402,214 @@ async def edit_profile_apply(update, context):
     return PROFILE_SHOW_STATE
 
 
-old_messages = []
-
-
-async def send_recomendation(context):
-    ## 1. Определить пользователя и чат-айди, которому надо прислать рекомендацию
-    ## 2. Из таблицы по статусам_рекомендаций по чат-айди получаем массив ранее отправленных рекомендаций
-    ## 3. Извлекаем идентификатор (он же порядковый номер) последне рекомендации
-    ## 4. Прибавляем к нему единицу для формирования идентификатора следующей рекомендации
-    ## 5. Понять закончился ли адвент или нет:
-    ## 6. Если номер рекомендации равен длине спика рекомендаций, значит адвент закончен, то
-    ##    6.1. Завершить задание и вернуться в меню
-    ## 7. Если адвент еще не закончен, то:
-    ## 8. Из таблицы рекомендаций извлекаем рекомендацию по номеру
-    ## 9. Отправляем рекомендацию пользователю
-    ## 10. Записать в таблицу по статусам строку с отправленной рекомендацией в статусе 0
-    ## 11. Удалить предыдущий мессадж:
-    ##   11.2. Определить из массива ранее отправленных рекомендаци последнюю запись
-    ##   11.3 Взять с нее message_id
-    ##   11.4 Удалить сообщение
-    ## 12. Бросить в пользователя клавиатуру
-    ## 13. Написать обработчики клавиатурных кнопкок в отдельном хендлере (придмать там такойй же алгоритм)
-
-    global const
-    db_sess = db_session.create_session()
+async def send_recommendation(context):
     chat_id = context.job.chat_id
-    kol_rec = db_sess.query(Recommendation).count()
-    list_rec = db_sess.query(Status_recommendation).filter(Status_recommendation.chat_id == chat_id).all()
-    if len(list_rec) != 0:
-        last_rec_id = list_rec[-1].rec_id
+
+    # Выполняем поиск пользователя по идентификатору чата
+    user = await find_user_by_chat_id(chat_id)
+    # Если пользователь не найден, то адвент прекращается - выход
+    if user is None:
+        await context.bot.send_message(chat_id=chat_id, text='Такой пользователь не найден, адвент будет остановлен!')
+        context.job.schedule_removal()
+        return
+
+    db_sess = db_session.create_session()
+    # Определяем количество рекомендаций, которые в принципе нужно было отправить
+    recommendations_count = db_sess.query(Recommendation).count()
+
+    # Получаем все ранее отправленные рекомендации этому пользователю
+    sent_recommendations = db_sess.query(Status_recommendation).filter(
+        Status_recommendation.user_id == user.User_ID).all()
+
+    # Если ранее уже отправлялись рекомендации, то определяем последнюю отправленную, иначе используем первую
+    if len(sent_recommendations) != 0:
+        last_rec_id = sent_recommendations[-1].rec_id
     else:
         last_rec_id = 0
-    if last_rec_id + 1 > kol_rec:
-        await context.bot.send_message(chat_id=context.job.chat_id, text=f'вы прошли все рекомендации!')
-        context.job_queue.stop()
+
+    new_req_id = last_rec_id + 1
+    # Если все рекомендации уже были отправлены ранее, то завершаем адвент - выход
+    if new_req_id > recommendations_count:
+        await context.bot.send_message(chat_id=chat_id, text=f'Вы прошли все рекомендации!')
+        context.job.schedule_removal()
         return
-    else:
-        rec_new = db_sess.query(Recommendation).filter(Recommendation.id == last_rec_id + 1).first()
+
+    # Получаем текст очередной рекомендации и отправляем ее пользователю
+    rec_new = db_sess.query(Recommendation).filter(Recommendation.id == new_req_id).first()
+
+    keyboard = [
+        [
+            InlineKeyboardButton("Выполнить", callback_data=f"{REC_BUTTON_DONE}:{new_req_id}"),
+            InlineKeyboardButton("Отложить", callback_data=f"{REC_BUTTON_SKIP}:{new_req_id}"),
+        ]
+    ]
+    markup = InlineKeyboardMarkup(keyboard)
+
+    # Отправляем рекомендацию
+    message = await context.bot.send_message(chat_id=chat_id,
+                                             text=f'{context.job.data}, '
+                                                  f'рекомендация № {new_req_id}: '
+                                                  f'{rec_new.recommendation}!',
+                                             reply_markup=markup)
+
+    # Сохраняем отправленную рекомендацию в базу
     stat_rec = Status_recommendation()
     stat_rec.chat_id = chat_id
-    stat_rec.status = 0
-
-    stat_rec.user_id = 0
+    stat_rec.user_id = user.User_ID
     stat_rec.send_time = datetime.now()
-    reply_keyboard = [['Выполнить', 'Отложить']]
-    markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
-    message = await context.bot.send_message(chat_id=context.job.chat_id, text=f'{context.job.data} {last_rec_id + 1} {rec_new.recommendation}!', reply_markup=markup)
     stat_rec.message_id = message.message_id
-    stat_rec.rec_id = last_rec_id + 1
+    stat_rec.rec_id = new_req_id
     stat_rec.rec_status = 0
+
     db_sess.add(stat_rec)
     db_sess.commit()
-    if last_rec_id != 0:
-        old_message = list_rec[-1].message_id
-        await context.bot.delete_message(chat_id=context.job.chat_id, message_id=old_message)
+
+    # Если отправленная рекомендация не первая, то подчищаем в чате предыдущую рекомендацию
+    if last_rec_id > 0:
+        old_message = sent_recommendations[-1].message_id
+        # TODO: Сообщения может не быть, получим BadRequest в логах
+        await context.bot.delete_message(chat_id=chat_id, message_id=old_message)
 
 
+async def send_notification(context: ContextTypes.DEFAULT_TYPE):
+    chat_id = context.job.chat_id
 
-async def send_recomendation_recomend(context):
+    user = await find_user_by_chat_id(chat_id)
+    if user is None:
+        await context.bot.send_message(chat_id=chat_id, text='Такой пользователь не найден, адвент будет остановлен!')
+        context.job.schedule_removal()
+        return
 
     db_sess = db_session.create_session()
-    chat_id = context.job.chat_id
-    kol_rec = db_sess.query(Recommendation).count()
-    list_rec = db_sess.query(Status_recommendation).filter(Status_recommendation.chat_id == chat_id).all()
-    if len(list_rec) != 0:
-        last_rec_id = list_rec[-1].rec_id
-    else:
-        last_rec_id = 0
-    if last_rec_id + 1 > kol_rec:
-        await context.bot.send_message(chat_id=context.job.chat_id, text=f'вы прошли все рекомендации!')
-        context.job_queue.stop()
-    else:
-        rec_new = db_sess.query(Recommendation).filter(Recommendation.id == last_rec_id).first()
-        if (last_rec_id + 1) >= 4:
-            rec_new_2 = db_sess.query(Recommendation).filter(Recommendation.id == last_rec_id - 1).first()
-            rec_new_3 = db_sess.query(Recommendation).filter(Recommendation.id == last_rec_id - 2).first()
-        elif (last_rec_id + 1) == 3:
-            rec_new_2 = db_sess.query(Recommendation).filter(Recommendation.id == last_rec_id - 1).first()
-    stat_rec = Status_recommendation()
-    stat_rec.chat_id = chat_id
-    stat_rec.status = 0
-    stat_rec.user_id = 0
-    stat_rec.send_time = datetime.now()
-    reply_keyboard = [['Меню']]
-    markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
-    day = 'День'
-    if (last_rec_id + 1) >= 4:
-        message = await context.bot.send_message(chat_id=context.job.chat_id, text=f'{day} {last_rec_id}. Сегодня. {rec_new.recommendation}\n{day} {last_rec_id - 1}. {rec_new_2.recommendation}\n{day} {last_rec_id - 2}. {rec_new_3.recommendation}', reply_markup=markup)
-    elif (last_rec_id + 1) == 3:
-        message = await context.bot.send_message(chat_id=context.job.chat_id, text=f'{day} {last_rec_id}. Сегодня. {rec_new.recommendation}\n{day} {last_rec_id - 1}. {rec_new_2.recommendation}', reply_markup=markup)
-    elif (last_rec_id + 1) == 2:
-        message = await context.bot.send_message(chat_id=context.job.chat_id, text=f'{day} {last_rec_id}. Сегодня. {rec_new.recommendation}', reply_markup=markup)
-    stat_rec.message_id = message.message_id
-    stat_rec.rec_id = last_rec_id
-    stat_rec.rec_status = 0
+    sent_recommendations = db_sess.query(Status_recommendation).filter(
+        Status_recommendation.user_id == user.User_ID).all()
+
+    count_uncomleted_recommendations = 0
+    result = ''
+
+    for rec in sent_recommendations:
+        if rec.rec_status == '2':
+            count_uncomleted_recommendations += 1
+            recomm = db_sess.query(Recommendation).filter(Recommendation.id == rec.rec_id).first()
+            recc = recomm.recommendation
+            result += f'День {rec.rec_id}. {recc}\n'
+
+    if result == '':
+        context.job.schedule_removal()
+        return
+
+    result = f'Не выполнено {count_uncomleted_recommendations} рекомендаций:\n' + result
+    keyboard = [
+        [
+            InlineKeyboardButton("Сообщить о выполнении", callback_data=f"{REC_BUTTON_REPORT}")
+        ]
+    ]
+    markup = InlineKeyboardMarkup(keyboard)
+
+    # Отправляем рекомендацию
+    message = await context.bot.send_message(chat_id=chat_id,
+                                             text=result,
+                                             reply_markup=markup)
+
+    # Если отправленная рекомендация не первая, то подчищаем в чате предыдущую рекомендацию
+    # if last_rec_id > 0:
+    #     old_message = sent_recommendations[-1].message_id
+    #     # TODO: Сообщения может не быть, получим BadRequest в логах
+    #     await context.bot.delete_message(chat_id=chat_id, message_id=old_message)
+
+
+async def send_results(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    pass
+
+
+async def done_recommendation(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    chat_id = query.message.chat_id
+    del_idx = query.data.find(":") + 1
+    rec_id = int(query.data[del_idx:])
+
+    db_sess = db_session.create_session()
+    rec = (db_sess.query(Status_recommendation).
+           filter(Status_recommendation.chat_id == chat_id, Status_recommendation.rec_id == rec_id).
+           first())
+
+    rec.rec_status = "1"
+    db_sess.add(rec)
     db_sess.commit()
-    if last_rec_id != 0:
-        old_message = list_rec[-1].message_id
-        await context.bot.delete_message(chat_id=context.job.chat_id, message_id=old_message)
+
+    await query.delete_message()
+    await context.bot.send_message(chat_id=chat_id, text=f"Выполнена рекомендация №: {rec_id}")
+
+
+async def skip_recommendation(update, context):
+    query = update.callback_query
+    await query.answer()
+
+    chat_id = query.message.chat_id
+    del_idx = query.data.find(":") + 1
+    rec_id = int(query.data[del_idx:])
+
+    db_sess = db_session.create_session()
+    rec = (db_sess.query(Status_recommendation).
+           filter(Status_recommendation.chat_id == chat_id, Status_recommendation.rec_id == rec_id).
+           first())
+
+    rec.rec_status = "2"
+    db_sess.add(rec)
+    db_sess.commit()
+
+    await query.delete_message()
+    await context.bot.send_message(chat_id=chat_id, text=f"Отложена рекомендация №: {rec_id}")
+
+
+async def run_recommendation_job(context, user):
+    # TODO: Нужно запускать в зависимости от временных настроек пользователя
+    context.job_queue.run_repeating(send_recommendation, 5, data=user.Name, chat_id=user.Chat_Id)
+
+
+async def run_notification_job(context, user):
+    # TODO: Нужно запускать в зависимости от временных настроек пользователя
+    context.job_queue.run_repeating(send_notification, 10, data=user.Name, chat_id=user.Chat_Id)
+
 
 async def set_timer(update, context):
     chat_id = update.message.chat_id
-    name = update.effective_chat.full_name
+    user = await find_user_by_chat_id(chat_id)
+    if user is None:
+        await context.bot.send_message(chat_id=chat_id, text='Такой пользователь не найден, адвент не будет запущен!')
+        return
+
     await context.bot.send_message(chat_id=chat_id, text='Новогодний адвент запущен')
-    # Ставим будильник для функции `callback_alarm()`
+    await run_notification_job(context, user)
+    await run_recommendation_job(context, user)
 
-    context.job_queue.run_repeating(send_recomendation, 15,  data=name,  chat_id=chat_id)
 
+async def resume_sending(context):
+    db_sess = db_session.create_session()
 
-async def recomend(update, context):
-    # chat_id = update.message.chat_id
-    # name = update.effective_chat.full_name
-    # a ='День',
-    # reply_text = context.job_queue.run_repeating(send_recomendation, 5,  data=a,  chat_id=chat_id)
-    chat_id = update.message.chat_id
-    name = update.effective_chat.full_name
-    # Ставим будильник для функции `callback_alarm()`
-    context.job_queue.run_once(send_recomendation_recomend, 0, data=name, chat_id=chat_id)
-    reply_keyboard = [['Меню']]
-    markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
-    await update.message.reply_text('Список рекомендаций. Если он отсутствует, то убедитесь, что вы запустили "Новогодний адвент"', reply_markup=markup)
-    return RECOMEND
+    # Определяем количество рекомендаций, которые в принципе нужно было отправить
+    recommendations_count = db_sess.query(Recommendation).count()
+    chat_users = (db_sess.query(Status_recommendation.chat_id).
+                  group_by(Status_recommendation.chat_id).
+                  having(func.max(Status_recommendation.rec_id) < recommendations_count).
+                  all())
 
-async def test_digital_gegeyna(update, context):
-    global const
-    if const == 30:
-        reply_keyboard = [['Пройти тест']]
-        markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
-        await update.message.reply_text(
-            'Выполните все рекомендации и пройдите проверку знаний, получите звание Джедая ордена Цифровой гигиены и возможность скачать стикерпак от Киберпротекта',
-            reply_markup=markup)
-        return TEST_DG
-    else:
-        await update.message.reply_text(
-            'Это кнопка станет доступной только после полного прохождения теста по цифровой гигиене')
-
+    for row in chat_users:
+        chat_id = row[0]
+        user = await find_user_by_chat_id(chat_id)
+        if user is None:
+            continue
+        await run_recommendation_job(context, user)
 
 
 def main():
     application = Application.builder().token(BOT_TOKEN).build()
+
+    # Возобновление отправки рекомендаций после рестарта
+    application.job_queue.run_once(resume_sending, 1)
+
     application.add_handler(CommandHandler("stop", stop))
     application.add_handler(CommandHandler("help", help))
 
@@ -486,10 +623,12 @@ def main():
             REGISTRATION_STATE: [MessageHandler(condition, registration)],
             NAME_STATE: [MessageHandler(condition, name)],
             SCHEDULE_STATE: [MessageHandler(condition, schedule)],
+            TIME_STATE: [MessageHandler(condition, time_schedule)],
+            TIMEZONE_STATE: [MessageHandler(condition, timezone_schedule)],
             SEX_STATE: [MessageHandler(condition, sex)],
             AGE_STATE: [MessageHandler(condition, age)],
-            SHOW_MENU_STATE: [MessageHandler(filters.Text(["Меню"]), show_menu)],
-            TIME_STATE: [MessageHandler(condition, time_schedule)],
+            PERIOD_STATE: [MessageHandler(condition, period)],
+            SHOW_MENU_STATE: [MessageHandler(filters.Text(["Меню"]), show_menu)]
         },
         fallbacks=[
             CommandHandler('stop', stop),
@@ -509,7 +648,7 @@ def main():
                 MessageHandler(filters.Text(["Редактировать данные"]), edit_profile)
             ],
             PROFILE_EDIT_FIELD_STATE: [
-                MessageHandler(filters.Text(["Имя", "Возраст", "Пол", "График", "Время"]), edit_profile_request),
+                MessageHandler(filters.Text(["Имя", "Возраст", "Пол", "График", "Время", "Период напоминаний"]), edit_profile_request),
                 MessageHandler(filters.Text(["Назад"]), show_profile)
             ],
             PROFILE_EDIT_APPLY_STATE: [
@@ -520,37 +659,15 @@ def main():
             MessageHandler(filters.Text(["Меню"]), show_menu),
         ]
     )
-    recomend_handler = ConversationHandler(
-        entry_points=[MessageHandler(filters.Text(["Рекомендации"]), recomend)],
-        states={
-            RECOMEND: [
-                MessageHandler(filters.Text(["Меню"]), show_menu)
-            ]
-        },
-        fallbacks=[
-            MessageHandler(filters.Text(["Меню"]), show_menu),
-        ]
-    )
-    test_DG_handler = ConversationHandler(
-        entry_points=[MessageHandler(filters.Text(["Пройти тест по цифровой гигиене"]), test_digital_gegeyna)],
-        states={
-            TEST_DG: [
-                MessageHandler(filters.Text(['Пройти тест']), test_digital_gegeyna)
-            ]
-        },
-        fallbacks=[
-            MessageHandler(filters.Text(['Меню']), test_digital_gegeyna)
-        ]
-    )
+
     application.add_handler(profile_handler)
-    application.add_handler(recomend_handler)
-    application.add_handler(test_DG_handler)
-    application.add_handler(MessageHandler(filters.Text(["Запустить новогодний адвент по цифровой гигиене"]), set_timer))
-    # application.add_handler(
-    #     MessageHandler(filters.Text(["Рекомендации"]), set_timer))
+    application.add_handler(
+        MessageHandler(filters.Text(["Запустить новогодний адвент по цифровой гигиене"]), set_timer))
 
+    application.add_handler(CallbackQueryHandler(done_recommendation, pattern=f"^{REC_BUTTON_DONE}:\\d+$"))
+    application.add_handler(CallbackQueryHandler(skip_recommendation, pattern=f"^{REC_BUTTON_SKIP}:\\d+$"))
 
-
+    application.add_handler(CallbackQueryHandler(send_results, pattern=f"^{REC_BUTTON_REPORT}"))
 
     # Сценарий обработки кнопки "Запустить новогодний адвент по цифровой гигиене"
     # TODO: Оформить этот код как ConversationHandler как сделано выше с профилем

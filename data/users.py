@@ -13,7 +13,6 @@ class User(SqlAlchemyBase, UserMixin, SerializerMixin):
     User_ID = sqlalchemy.Column(sqlalchemy.Integer,
                            primary_key=True, autoincrement=True)
     Name = sqlalchemy.Column(sqlalchemy.String, nullable=True)
-    Last_Recommendation = sqlalchemy.Column(sqlalchemy.Integer, default=0)
     Registration_Day = sqlalchemy.Column(sqlalchemy.DateTime,
                                          default=datetime.datetime.now)
     Age_Group = sqlalchemy.Column(sqlalchemy.String, nullable=True)
@@ -22,3 +21,5 @@ class User(SqlAlchemyBase, UserMixin, SerializerMixin):
     UserName = sqlalchemy.Column(sqlalchemy.String, nullable=True)
     Chat_Id = sqlalchemy.Column(sqlalchemy.String, nullable=True)
     Time = sqlalchemy.Column(sqlalchemy.String, nullable=True)
+    Timezone = sqlalchemy.Column(sqlalchemy.String, nullable=True)
+    Period = sqlalchemy.Column(sqlalchemy.String, nullable=True)
