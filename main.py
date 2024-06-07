@@ -6,9 +6,9 @@ from data.users import User
 from data.recommendations import Recommendation
 from data.status_recommendation import Status_recommendation
 from telegram.ext import Application, MessageHandler, filters, CommandHandler, ConversationHandler, ContextTypes
-from telegram import ReplyKeyboardMarkup, Update, ReplyKeyboardRemove
+from telegram import ReplyKeyboardMarkup, Update, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup
 
-BOT_TOKEN = '6522784356:AAHB7lKSBukJDq-Tq3SAB9mxql95Cn9Dutg'
+BOT_TOKEN = '6425799983:AAGUzo77JZPhT20_6SVFfpoD5DMcqzNE07M'
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG
 )
@@ -16,12 +16,33 @@ db_session.global_init("db/data_base.db")
 logger = logging.getLogger(__name__)
 
 flag_first_event = False
+query_data = ''
 
 (GREETING_STATE, REGISTRATION_STATE, NAME_STATE, SCHEDULE_STATE, SEX_STATE,
  AGE_STATE, SHOW_MENU_STATE, TIME_STATE) = range(8)
 
 PROFILE_SHOW_STATE, PROFILE_EDIT_STATE, PROFILE_EDIT_FIELD_STATE, PROFILE_EDIT_APPLY_STATE = range(4)
 ADVENT_TIMER_STATE, ADVENT_WORK_STATE = range(2)
+RECOMEND  = range(1)
+TEST_DG = range(1)
+const = 29
+
+
+
+class color:
+   PURPLE = '\033[95m'
+   CYAN = '\033[96m'
+   DARKCYAN = '\033[36m'
+   BLUE = '\033[94m'
+   GREEN = '\033[92m'
+   YELLOW = '\033[93m'
+   RED = '\033[91m'
+   BOLD = '\033[1m'
+   UNDERLINE = '\033[4m'
+   END = '\033[0m'
+
+
+# print(color.BOLD + 'Hello, World!' + color.END)
 async def help(update, context):
     """Отправляет сообщение когда получена команда /help"""
     await update.message.reply_text("Я умею вести диалог из двух вопросов.")
@@ -335,7 +356,7 @@ async def send_recomendation(context):
     ## 12. Бросить в пользователя клавиатуру
     ## 13. Написать обработчики клавиатурных кнопкок в отдельном хендлере (придмать там такойй же алгоритм)
 
-
+    global const
     db_sess = db_session.create_session()
     chat_id = context.job.chat_id
     kol_rec = db_sess.query(Recommendation).count()
@@ -356,7 +377,6 @@ async def send_recomendation(context):
 
     stat_rec.user_id = 0
     stat_rec.send_time = datetime.now()
-
     reply_keyboard = [['Выполнить', 'Отложить']]
     markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
     message = await context.bot.send_message(chat_id=context.job.chat_id, text=f'{context.job.data} {last_rec_id + 1} {rec_new.recommendation}!', reply_markup=markup)
@@ -371,14 +391,83 @@ async def send_recomendation(context):
 
 
 
+async def send_recomendation_recomend(context):
+
+    db_sess = db_session.create_session()
+    chat_id = context.job.chat_id
+    kol_rec = db_sess.query(Recommendation).count()
+    list_rec = db_sess.query(Status_recommendation).filter(Status_recommendation.chat_id == chat_id).all()
+    if len(list_rec) != 0:
+        last_rec_id = list_rec[-1].rec_id
+    else:
+        last_rec_id = 0
+    if last_rec_id + 1 > kol_rec:
+        await context.bot.send_message(chat_id=context.job.chat_id, text=f'вы прошли все рекомендации!')
+        context.job_queue.stop()
+    else:
+        rec_new = db_sess.query(Recommendation).filter(Recommendation.id == last_rec_id).first()
+        if (last_rec_id + 1) >= 4:
+            rec_new_2 = db_sess.query(Recommendation).filter(Recommendation.id == last_rec_id - 1).first()
+            rec_new_3 = db_sess.query(Recommendation).filter(Recommendation.id == last_rec_id - 2).first()
+        elif (last_rec_id + 1) == 3:
+            rec_new_2 = db_sess.query(Recommendation).filter(Recommendation.id == last_rec_id - 1).first()
+    stat_rec = Status_recommendation()
+    stat_rec.chat_id = chat_id
+    stat_rec.status = 0
+    stat_rec.user_id = 0
+    stat_rec.send_time = datetime.now()
+    reply_keyboard = [['Меню']]
+    markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
+    day = 'День'
+    if (last_rec_id + 1) >= 4:
+        message = await context.bot.send_message(chat_id=context.job.chat_id, text=f'{day} {last_rec_id}. Сегодня. {rec_new.recommendation}\n{day} {last_rec_id - 1}. {rec_new_2.recommendation}\n{day} {last_rec_id - 2}. {rec_new_3.recommendation}', reply_markup=markup)
+    elif (last_rec_id + 1) == 3:
+        message = await context.bot.send_message(chat_id=context.job.chat_id, text=f'{day} {last_rec_id}. Сегодня. {rec_new.recommendation}\n{day} {last_rec_id - 1}. {rec_new_2.recommendation}', reply_markup=markup)
+    elif (last_rec_id + 1) == 2:
+        message = await context.bot.send_message(chat_id=context.job.chat_id, text=f'{day} {last_rec_id}. Сегодня. {rec_new.recommendation}', reply_markup=markup)
+    stat_rec.message_id = message.message_id
+    stat_rec.rec_id = last_rec_id
+    stat_rec.rec_status = 0
+    db_sess.commit()
+    if last_rec_id != 0:
+        old_message = list_rec[-1].message_id
+        await context.bot.delete_message(chat_id=context.job.chat_id, message_id=old_message)
+
 async def set_timer(update, context):
     chat_id = update.message.chat_id
-    time_beg = 5
     name = update.effective_chat.full_name
     await context.bot.send_message(chat_id=chat_id, text='Новогодний адвент запущен')
     # Ставим будильник для функции `callback_alarm()`
 
-    context.job_queue.run_repeating(send_recomendation, 5,  data=name,  chat_id=chat_id)
+    context.job_queue.run_repeating(send_recomendation, 15,  data=name,  chat_id=chat_id)
+
+
+async def recomend(update, context):
+    # chat_id = update.message.chat_id
+    # name = update.effective_chat.full_name
+    # a ='День',
+    # reply_text = context.job_queue.run_repeating(send_recomendation, 5,  data=a,  chat_id=chat_id)
+    chat_id = update.message.chat_id
+    name = update.effective_chat.full_name
+    # Ставим будильник для функции `callback_alarm()`
+    context.job_queue.run_once(send_recomendation_recomend, 0, data=name, chat_id=chat_id)
+    reply_keyboard = [['Меню']]
+    markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
+    await update.message.reply_text('Список рекомендаций. Если он отсутствует, то убедитесь, что вы запустили "Новогодний адвент"', reply_markup=markup)
+    return RECOMEND
+
+async def test_digital_gegeyna(update, context):
+    global const
+    if const == 30:
+        reply_keyboard = [['Пройти тест']]
+        markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
+        await update.message.reply_text(
+            'Выполните все рекомендации и пройдите проверку знаний, получите звание Джедая ордена Цифровой гигиены и возможность скачать стикерпак от Киберпротекта',
+            reply_markup=markup)
+        return TEST_DG
+    else:
+        await update.message.reply_text(
+            'Это кнопка станет доступной только после полного прохождения теста по цифровой гигиене')
 
 
 
@@ -400,7 +489,7 @@ def main():
             SEX_STATE: [MessageHandler(condition, sex)],
             AGE_STATE: [MessageHandler(condition, age)],
             SHOW_MENU_STATE: [MessageHandler(filters.Text(["Меню"]), show_menu)],
-            TIME_STATE: [MessageHandler(condition, time_schedule)]
+            TIME_STATE: [MessageHandler(condition, time_schedule)],
         },
         fallbacks=[
             CommandHandler('stop', stop),
@@ -431,8 +520,34 @@ def main():
             MessageHandler(filters.Text(["Меню"]), show_menu),
         ]
     )
+    recomend_handler = ConversationHandler(
+        entry_points=[MessageHandler(filters.Text(["Рекомендации"]), recomend)],
+        states={
+            RECOMEND: [
+                MessageHandler(filters.Text(["Меню"]), show_menu)
+            ]
+        },
+        fallbacks=[
+            MessageHandler(filters.Text(["Меню"]), show_menu),
+        ]
+    )
+    test_DG_handler = ConversationHandler(
+        entry_points=[MessageHandler(filters.Text(["Пройти тест по цифровой гигиене"]), test_digital_gegeyna)],
+        states={
+            TEST_DG: [
+                MessageHandler(filters.Text(['Пройти тест']), test_digital_gegeyna)
+            ]
+        },
+        fallbacks=[
+            MessageHandler(filters.Text(['Меню']), test_digital_gegeyna)
+        ]
+    )
     application.add_handler(profile_handler)
+    application.add_handler(recomend_handler)
+    application.add_handler(test_DG_handler)
     application.add_handler(MessageHandler(filters.Text(["Запустить новогодний адвент по цифровой гигиене"]), set_timer))
+    # application.add_handler(
+    #     MessageHandler(filters.Text(["Рекомендации"]), set_timer))
 
 
 
