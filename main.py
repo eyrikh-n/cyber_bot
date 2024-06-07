@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 PROFILE_SHOW_STATE, PROFILE_EDIT_STATE, PROFILE_EDIT_FIELD_STATE, PROFILE_EDIT_APPLY_STATE = range(4)
 ADVENT_TIMER_STATE, ADVENT_WORK_STATE = range(2)
 
-REC_BUTTON_DONE, REC_BUTTON_SKIP, REC_BUTTON_REPORT = "rec_button_done", "rec_button_skip", "rec_button_report"
+REC_BUTTON_DONE, REC_BUTTON_SKIP, REC_BUTTON_REPORT, REC_BUTTON_SHARE = "rec_button_done", "rec_button_skip", "rec_button_report", "rec_button_share"
 
 
 async def get_timezone_by_utc_offset(utc_offset: timedelta) -> str:
@@ -251,8 +251,8 @@ async def show_menu(update, context):
         ['Пригласить друзей', 'Помощь']])
 
     markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
-    await bot.send_photo(chat_id=update.message.chat.id,
-                         photo="https://img.freepik.com/free-vector/tiny-business-people-with-digital-devices-big-globe-surfing-internet_335657-2449.jpg?t=st=1717695852~exp=1717699452~hmac=5d5ae3568da44133edf2c0a7f6c0a899ee29ad8db05a4444b961a293ae245a8e&w=2000")
+    # await bot.send_photo(chat_id=update.message.chat.id,
+    #                      photo="https://img.freepik.com/free-vector/tiny-business-people-with-digital-devices-big-globe-surfing-internet_335657-2449.jpg?t=st=1717695852~exp=1717699452~hmac=5d5ae3568da44133edf2c0a7f6c0a899ee29ad8db05a4444b961a293ae245a8e&w=2000")
     await update.message.reply_text("Меню", reply_markup=markup)
     return ConversationHandler.END
 
@@ -567,10 +567,6 @@ async def skip_recommendation(update, context):
 async def run_recommendation_job(context, user):
     # TODO: Нужно запускать в зависимости от временных настроек пользователя
     context.job_queue.run_repeating(send_recommendation, 5, data=user.Name, chat_id=user.Chat_Id)
-
-
-async def run_notification_job(context, user):
-    # TODO: Нужно запускать в зависимости от временных настроек пользователя
     context.job_queue.run_repeating(send_notification, 10, data=user.Name, chat_id=user.Chat_Id)
 
 
@@ -582,7 +578,6 @@ async def set_timer(update, context):
         return
 
     await context.bot.send_message(chat_id=chat_id, text='Новогодний адвент запущен')
-    await run_notification_job(context, user)
     await run_recommendation_job(context, user)
 
 
@@ -602,6 +597,28 @@ async def resume_sending(context):
         if user is None:
             continue
         await run_recommendation_job(context, user)
+
+
+async def share(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = str(update.message.chat.id)
+
+    user = await find_user_by_chat_id(chat_id)
+    if user is None:
+        await context.bot.send_message(chat_id=chat_id, text='Такой пользователь не найден, адвент будет остановлен!')
+        context.job.schedule_removal()
+        return
+
+    keyboard = [
+        [
+            InlineKeyboardButton("Поделиться", url='https://t.me/share/url?url=https://t.me/Cyber_safeness_bot')
+        ]
+    ]
+    markup = InlineKeyboardMarkup(keyboard)
+
+    message = await context.bot.send_message(chat_id=chat_id,
+                                             text=f"Поделитесь нашим ботом со своими друзьями, чтобы и они "
+                                                  f"были грамотными в цифровой среде!",
+                                             reply_markup=markup)
 
 
 def main():
@@ -661,6 +678,16 @@ def main():
     )
 
     application.add_handler(profile_handler)
+
+    share_handler = ConversationHandler(
+        entry_points=[MessageHandler(filters.Text(["Пригласить друзей"]), share)],
+        states={},
+        fallbacks=[
+            MessageHandler(filters.Text(["Меню"]), show_menu),
+        ]
+    )
+
+    application.add_handler(share_handler)
     application.add_handler(
         MessageHandler(filters.Text(["Запустить новогодний адвент по цифровой гигиене"]), set_timer))
 
