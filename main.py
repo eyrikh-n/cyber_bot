@@ -2,6 +2,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional
 from zoneinfo import ZoneInfo
+import asyncio
 
 import pytz
 from sqlalchemy import func
@@ -29,7 +30,8 @@ PROFILE_SHOW_STATE, PROFILE_EDIT_STATE, PROFILE_EDIT_FIELD_STATE, PROFILE_EDIT_A
 ADVENT_TIMER_STATE, ADVENT_WORK_STATE = range(2)
 
 REC_BUTTON_DONE, REC_BUTTON_SKIP, REC_BUTTON_REPORT, REC_BUTTON_SHARE = "rec_button_done", "rec_button_skip", "rec_button_report", "rec_button_share"
-
+RECOMEND  = range(1)
+TEST_DG = range(1)
 
 async def get_timezone_by_utc_offset(utc_offset: timedelta) -> str:
     current_utc_time = datetime.now(pytz.utc)
@@ -566,7 +568,7 @@ async def skip_recommendation(update, context):
 
 async def run_recommendation_job(context, user):
     # TODO: Нужно запускать в зависимости от временных настроек пользователя
-    context.job_queue.run_repeating(send_recommendation, 5, data=user.Name, chat_id=user.Chat_Id)
+    context.job_queue.run_repeating(send_recommendation, 15, data=user.Name, chat_id=user.Chat_Id)
     context.job_queue.run_repeating(send_notification, 10, data=user.Name, chat_id=user.Chat_Id)
 
 
@@ -621,6 +623,91 @@ async def share(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                              reply_markup=markup)
 
 
+async def send_recomendation_recomend(context):
+    db_sess = db_session.create_session()
+    chat_id = context.job.chat_id
+    kol_rec = db_sess.query(Recommendation).count()
+    list_rec = db_sess.query(Status_recommendation).filter(Status_recommendation.chat_id == chat_id).all()
+    if len(list_rec) != 0:
+        last_rec_id = list_rec[-1].rec_id
+    else:
+        last_rec_id = 0
+    if last_rec_id + 1 > kol_rec:
+        await context.bot.send_message(chat_id=context.job.chat_id, text=f'вы прошли все рекомендации!')
+        context.job_queue.stop()
+    else:
+        rec_new = db_sess.query(Recommendation).filter(Recommendation.id == last_rec_id).first()
+        if (last_rec_id + 1) >= 4:
+            rec_new_2 = db_sess.query(Recommendation).filter(Recommendation.id == last_rec_id - 1).first()
+            rec_new_3 = db_sess.query(Recommendation).filter(Recommendation.id == last_rec_id - 2).first()
+        elif (last_rec_id + 1) == 3:
+            rec_new_2 = db_sess.query(Recommendation).filter(Recommendation.id == last_rec_id - 1).first()
+    stat_rec = Status_recommendation()
+    stat_rec.chat_id = chat_id
+    stat_rec.status = 0
+    stat_rec.user_id = 0
+    stat_rec.send_time = datetime.now()
+    reply_keyboard = [['Меню']]
+    markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
+    day = 'День'
+    if (last_rec_id + 1) >= 4:
+        message = await context.bot.send_message(chat_id=context.job.chat_id, text=f'{day} {last_rec_id}. Сегодня. {rec_new.recommendation}\n{day} {last_rec_id - 1}. {rec_new_2.recommendation}\n{day} {last_rec_id - 2}. {rec_new_3.recommendation}', reply_markup=markup)
+    elif (last_rec_id + 1) == 3:
+        message = await context.bot.send_message(chat_id=context.job.chat_id, text=f'{day} {last_rec_id}. Сегодня. {rec_new.recommendation}\n{day} {last_rec_id - 1}. {rec_new_2.recommendation}', reply_markup=markup)
+    elif (last_rec_id + 1) == 2:
+        message = await context.bot.send_message(chat_id=context.job.chat_id, text=f'{day} {last_rec_id}. Сегодня. {rec_new.recommendation}', reply_markup=markup)
+    stat_rec.message_id = message.message_id
+    stat_rec.rec_id = last_rec_id
+    stat_rec.rec_status = 0
+    db_sess.commit()
+    if last_rec_id != 0:
+        old_message = list_rec[-1].message_id
+        await context.bot.delete_message(chat_id=context.job.chat_id, message_id=old_message)
+
+async def recomend(update, context):
+    chat_id = update.message.chat_id
+    db_sess = db_session.create_session()
+    kol_rec = db_sess.query(Recommendation).count()
+    list_rec = db_sess.query(Status_recommendation).filter(Status_recommendation.chat_id == chat_id).all()
+    if len(list_rec) != 0:
+        last_rec_id = list_rec[-1].rec_id
+    else:
+        last_rec_id = 0
+    chat_id = update.message.chat_id
+    name = update.effective_chat.full_name
+    # Ставим будильник для функции `callback_alarm()`
+    context.job_queue.run_once(send_recomendation_recomend, 0, data=name, chat_id=chat_id)
+    reply_keyboard = [['Меню']]
+    markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
+    if last_rec_id == 0:
+        await update.message.reply_text('Если список рекомендаций отсутствует, то убедитесь, что вы запустили "Новогодний адвент"')
+    else:
+        await update.message.reply_text('Список рекомендаций.', reply_markup=markup)
+    return RECOMEND
+
+async def test_digital_gegeyna(update, context):
+    chat_id = update.message.chat_id
+    db_sess = db_session.create_session()
+    kol_rec = db_sess.query(Recommendation).count()
+    list_rec = db_sess.query(Status_recommendation).filter(Status_recommendation.chat_id == chat_id).all()
+    if len(list_rec) != 0:
+        last_rec_id = list_rec[-1].rec_id
+    else:
+        last_rec_id = 0
+
+    if last_rec_id == 30:
+        reply_keyboard = [['Пройти тест']]
+        markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
+        await update.message.reply_text(
+            'Выполните все рекомендации и пройдите проверку знаний, получите звание Джедая ордена Цифровой гигиены и возможность скачать стикерпак от Киберпротекта',
+            reply_markup=markup)
+        return TEST_DG
+    else:
+        await update.message.reply_text(
+            'Это кнопка станет доступной только после полного прохождения теста по цифровой гигиене')
+
+async def forma_yandex(update, context):
+    await update.message.reply_text('https://forms.yandex.ru/u/6663258b5056903972729751/')
 def main():
     application = Application.builder().token(BOT_TOKEN).build()
 
@@ -686,7 +773,30 @@ def main():
             MessageHandler(filters.Text(["Меню"]), show_menu),
         ]
     )
-
+    recomend_handler = ConversationHandler(
+        entry_points=[MessageHandler(filters.Text(["Рекомендации"]), recomend)],
+        states={
+            RECOMEND: [
+                MessageHandler(filters.Text(["Меню"]), show_menu)
+            ]
+        },
+        fallbacks=[
+            MessageHandler(filters.Text(["Меню"]), show_menu),
+        ]
+    )
+    test_DG_handler = ConversationHandler(
+        entry_points=[MessageHandler(filters.Text(["Пройти тест по цифровой гигиене"]), test_digital_gegeyna)],
+        states={
+            TEST_DG: [
+                MessageHandler(filters.Text(['Пройти тест']), forma_yandex)
+            ]
+        },
+        fallbacks=[
+            MessageHandler(filters.Text(['Меню']), test_digital_gegeyna)
+        ]
+    )
+    application.add_handler(test_DG_handler)
+    application.add_handler(recomend_handler)
     application.add_handler(share_handler)
     application.add_handler(
         MessageHandler(filters.Text(["Запустить новогодний адвент по цифровой гигиене"]), set_timer))
@@ -714,4 +824,7 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print('Exit')
