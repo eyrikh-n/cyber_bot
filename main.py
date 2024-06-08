@@ -647,6 +647,8 @@ async def send_recomendation_recomend(context):
         await context.bot.send_message(chat_id=context.job.chat_id, text=f'{day} {last_rec_id}. Сегодня. {rec_new.recommendation}\n{day} {last_rec_id - 1}. {rec_new_2.recommendation}', reply_markup=markup)
     elif last_rec_id == 1:
         await context.bot.send_message(chat_id=context.job.chat_id, text=f'{day} {last_rec_id}. Сегодня. {rec_new.recommendation}', reply_markup=markup)
+    # db_sess.close()
+
 
 async def recomend(update, context):
     chat_id = update.message.chat_id
