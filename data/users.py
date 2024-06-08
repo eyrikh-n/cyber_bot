@@ -23,3 +23,4 @@ class User(SqlAlchemyBase, UserMixin, SerializerMixin):
     Time = sqlalchemy.Column(sqlalchemy.String, nullable=True)
     Timezone = sqlalchemy.Column(sqlalchemy.String, nullable=True)
     Period = sqlalchemy.Column(sqlalchemy.String, nullable=True)
+    Advent_Start = sqlalchemy.Column(sqlalchemy.DateTime, nullable=True)
