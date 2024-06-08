@@ -25,6 +25,7 @@ flag_first_event = False
 
 PROFILE_SHOW_STATE, PROFILE_EDIT_STATE, PROFILE_EDIT_FIELD_STATE, PROFILE_EDIT_APPLY_STATE = range(4)
 ADVENT_TIMER_STATE, ADVENT_WORK_STATE = range(2)
+RESULTS_SHOW, RESULTS_CHANGE = range(2)
 
 
 async def get_timezone_by_utc_offset(utc_offset: timedelta) -> str:
@@ -430,6 +431,83 @@ async def set_timer(update, context):
     context.job_queue.run_repeating(send_recommendation, 5, data=name, chat_id=chat_id)
 
 
+async def results(update, context):
+    global last_res_id
+    chat_id = str(update.message.chat_id)
+
+    user = await find_user_by_chat_id(chat_id)
+    if user is None:
+        await context.bot.send_message(chat_id=chat_id, text='Пользователь не найден.')
+        return
+
+    db_sess = db_session.create_session()
+
+    # Получаем все ранее отправленные рекомендации этому пользователю
+    sent_recommendations = db_sess.query(Status_recommendation).filter(
+        Status_recommendation.user_id == user.User_ID).all()
+    # Если ранее уже отправлялись рекомендации, то определяем последнюю отправленную, иначе используем первую
+    if len(sent_recommendations) != 0:
+        last_res_id = sent_recommendations[-1].rec_id
+    else:
+        await context.bot.send_message(chat_id=chat_id, text='Ни одной рекомендации не было отправлено.')
+        context.job_queue.stop()
+        return
+
+    if last_res_id > 5:
+        reply_keyboard = [['Показать далее...', 'Изменить статус выполнения', 'Меню']]
+        markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
+        recs = f''
+        for _ in range(5):
+            rec_new = db_sess.query(Recommendation).filter(Recommendation.id == last_res_id).first()
+            recs += f'№ {last_res_id}: {rec_new.recommendation}\n'
+            last_res_id -= 1
+        await context.bot.send_message(chat_id=chat_id,
+                                       text=recs,
+                                       reply_markup=markup)
+    else:
+        reply_keyboard = [['Изменить статус выполнения', 'Меню']]
+        markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
+        recs = f''
+        while last_res_id != 0:
+            rec_new = db_sess.query(Recommendation).filter(Recommendation.id == last_res_id).first()
+            recs += f'№ {last_res_id}: {rec_new.recommendation}\n'
+            last_res_id -= 1
+        await context.bot.send_message(chat_id=chat_id,
+                                       text=recs,
+                                       reply_markup=markup)
+    return RESULTS_SHOW
+
+
+async def show_result_next(update, context):
+    global last_res_id
+    print(last_res_id)
+    db_sess = db_session.create_session()
+    chat_id = str(update.message.chat_id)
+    if last_res_id > 5:
+        reply_keyboard = [['Показать далее...', 'Изменить статус выполнения', 'Меню']]
+        markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
+        recs = f''
+        for _ in range(5):
+            rec_new = db_sess.query(Recommendation).filter(Recommendation.id == last_res_id).first()
+            recs += f'№ {last_res_id}: {rec_new.recommendation}\n'
+            last_res_id -= 1
+        await context.bot.send_message(chat_id=chat_id,
+                                       text=recs,
+                                       reply_markup=markup)
+    else:
+        reply_keyboard = [['Изменить статус выполнения', 'Меню']]
+        markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
+        recs = f''
+        while last_res_id != 0:
+            print(last_res_id)
+            rec_new = db_sess.query(Recommendation).filter(Recommendation.id == last_res_id).first()
+            recs += f'№ {last_res_id}: {rec_new.recommendation}\n'
+            last_res_id -= 1
+        await context.bot.send_message(chat_id=chat_id,
+                                       text=recs,
+                                       reply_markup=markup)
+    return RESULTS_SHOW
+
 def main():
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("stop", stop))
@@ -481,6 +559,25 @@ def main():
         ]
     )
     application.add_handler(profile_handler)
+
+    # Обработка кнопки "Результаты выполнения"
+    results_handler = ConversationHandler(
+        entry_points=[MessageHandler(filters.Text(["Результаты выполнения"]), results)],
+        states={
+            RESULTS_SHOW: [
+                MessageHandler(filters.Text(["Показать далее..."]), show_result_next)
+            ],
+            PROFILE_EDIT_FIELD_STATE: [
+                MessageHandler(filters.Text(["Изменить статус выполнения"]), edit_profile_request),
+                MessageHandler(filters.Text(["Назад"]), show_profile)
+            ],
+        },
+        fallbacks=[
+            MessageHandler(filters.Text(["Меню"]), show_menu),
+        ]
+    )
+    application.add_handler(results_handler)
+
     application.add_handler(
         MessageHandler(filters.Text(["Запустить новогодний адвент по цифровой гигиене"]), set_timer))
 
