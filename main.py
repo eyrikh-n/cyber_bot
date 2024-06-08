@@ -2,7 +2,6 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional
 from zoneinfo import ZoneInfo
-import asyncio
 
 import pytz
 from sqlalchemy import func
@@ -32,6 +31,7 @@ ADVENT_TIMER_STATE, ADVENT_WORK_STATE = range(2)
 REC_BUTTON_DONE, REC_BUTTON_SKIP, REC_BUTTON_REPORT, REC_BUTTON_SHARE = "rec_button_done", "rec_button_skip", "rec_button_report", "rec_button_share"
 RECOMEND  = range(1)
 TEST_DG = range(1)
+trig = False
 
 async def get_timezone_by_utc_offset(utc_offset: timedelta) -> str:
     current_utc_time = datetime.now(pytz.utc)
@@ -568,7 +568,7 @@ async def skip_recommendation(update, context):
 
 async def run_recommendation_job(context, user):
     # TODO: Нужно запускать в зависимости от временных настроек пользователя
-    context.job_queue.run_repeating(send_recommendation, 15, data=user.Name, chat_id=user.Chat_Id)
+    context.job_queue.run_repeating(send_recommendation, 0, data=user.Name, chat_id=user.Chat_Id)
     context.job_queue.run_repeating(send_notification, 10, data=user.Name, chat_id=user.Chat_Id)
 
 
@@ -626,48 +626,31 @@ async def share(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def send_recomendation_recomend(context):
     db_sess = db_session.create_session()
     chat_id = context.job.chat_id
-    kol_rec = db_sess.query(Recommendation).count()
     list_rec = db_sess.query(Status_recommendation).filter(Status_recommendation.chat_id == chat_id).all()
     if len(list_rec) != 0:
         last_rec_id = list_rec[-1].rec_id
     else:
         last_rec_id = 0
-    if last_rec_id + 1 > kol_rec:
-        await context.bot.send_message(chat_id=context.job.chat_id, text=f'вы прошли все рекомендации!')
-        context.job_queue.stop()
-    else:
-        rec_new = db_sess.query(Recommendation).filter(Recommendation.id == last_rec_id).first()
-        if (last_rec_id + 1) >= 4:
-            rec_new_2 = db_sess.query(Recommendation).filter(Recommendation.id == last_rec_id - 1).first()
-            rec_new_3 = db_sess.query(Recommendation).filter(Recommendation.id == last_rec_id - 2).first()
-        elif (last_rec_id + 1) == 3:
-            rec_new_2 = db_sess.query(Recommendation).filter(Recommendation.id == last_rec_id - 1).first()
-    stat_rec = Status_recommendation()
-    stat_rec.chat_id = chat_id
-    stat_rec.status = 0
-    stat_rec.user_id = 0
-    stat_rec.send_time = datetime.now()
+    rec_new = db_sess.query(Recommendation).filter(Recommendation.id == last_rec_id).first()
+    if last_rec_id >= 3:
+        rec_new_2 = db_sess.query(Recommendation).filter(Recommendation.id == last_rec_id - 1).first()
+        rec_new_3 = db_sess.query(Recommendation).filter(Recommendation.id == last_rec_id - 2).first()
+    elif last_rec_id == 2:
+        rec_new_2 = db_sess.query(Recommendation).filter(Recommendation.id == last_rec_id - 1).first()
+
     reply_keyboard = [['Меню']]
     markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
     day = 'День'
-    if (last_rec_id + 1) >= 4:
-        message = await context.bot.send_message(chat_id=context.job.chat_id, text=f'{day} {last_rec_id}. Сегодня. {rec_new.recommendation}\n{day} {last_rec_id - 1}. {rec_new_2.recommendation}\n{day} {last_rec_id - 2}. {rec_new_3.recommendation}', reply_markup=markup)
-    elif (last_rec_id + 1) == 3:
-        message = await context.bot.send_message(chat_id=context.job.chat_id, text=f'{day} {last_rec_id}. Сегодня. {rec_new.recommendation}\n{day} {last_rec_id - 1}. {rec_new_2.recommendation}', reply_markup=markup)
-    elif (last_rec_id + 1) == 2:
-        message = await context.bot.send_message(chat_id=context.job.chat_id, text=f'{day} {last_rec_id}. Сегодня. {rec_new.recommendation}', reply_markup=markup)
-    stat_rec.message_id = message.message_id
-    stat_rec.rec_id = last_rec_id
-    stat_rec.rec_status = 0
-    db_sess.commit()
-    if last_rec_id != 0:
-        old_message = list_rec[-1].message_id
-        await context.bot.delete_message(chat_id=context.job.chat_id, message_id=old_message)
+    if last_rec_id >= 3:
+        await context.bot.send_message(chat_id=context.job.chat_id, text=f'{day} {last_rec_id}. Сегодня. {rec_new.recommendation}\n{day} {last_rec_id - 1}. {rec_new_2.recommendation}\n{day} {last_rec_id - 2}. {rec_new_3.recommendation}', reply_markup=markup)
+    elif last_rec_id == 2:
+        await context.bot.send_message(chat_id=context.job.chat_id, text=f'{day} {last_rec_id}. Сегодня. {rec_new.recommendation}\n{day} {last_rec_id - 1}. {rec_new_2.recommendation}', reply_markup=markup)
+    elif last_rec_id == 1:
+        await context.bot.send_message(chat_id=context.job.chat_id, text=f'{day} {last_rec_id}. Сегодня. {rec_new.recommendation}', reply_markup=markup)
 
 async def recomend(update, context):
     chat_id = update.message.chat_id
     db_sess = db_session.create_session()
-    kol_rec = db_sess.query(Recommendation).count()
     list_rec = db_sess.query(Status_recommendation).filter(Status_recommendation.chat_id == chat_id).all()
     if len(list_rec) != 0:
         last_rec_id = list_rec[-1].rec_id
@@ -686,16 +669,18 @@ async def recomend(update, context):
     return RECOMEND
 
 async def test_digital_gegeyna(update, context):
+    count = 0
     chat_id = update.message.chat_id
+    user = await find_user_by_chat_id(chat_id)
     db_sess = db_session.create_session()
-    kol_rec = db_sess.query(Recommendation).count()
-    list_rec = db_sess.query(Status_recommendation).filter(Status_recommendation.chat_id == chat_id).all()
-    if len(list_rec) != 0:
-        last_rec_id = list_rec[-1].rec_id
-    else:
-        last_rec_id = 0
-
-    if last_rec_id == 30:
+    sent_recommendations = db_sess.query(Status_recommendation).filter(
+        Status_recommendation.user_id == user.User_ID).all()
+    for rec in sent_recommendations:
+        if rec.rec_status == "1":
+            count += 1
+        else:
+            break
+    if count == 30:
         reply_keyboard = [['Пройти тест']]
         markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
         await update.message.reply_text(
@@ -824,7 +809,4 @@ def main():
 
 
 if __name__ == '__main__':
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        print('Exit')
+    main()
