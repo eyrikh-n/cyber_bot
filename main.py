@@ -60,20 +60,20 @@ async def start(update, context):
     if user is None:
         reply_keyboard = [['Запустить']]
         markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
-        await bot.send_photo(chat_id=update.message.chat.id, photo='https://img.freepik.com/free-vector/flat-background-for-safer-internet-day_23-2151127509.jpg?w=2000&t=st=1717694697~exp=1717695297~hmac=edd5b2ffe89d8b2901334e3df3190bffc0ed426ca69706be691a573487acdd33')
-        await update.message.reply_text(
-            "Добрый день. Данный бот поможет вам за N дней усилить защиту ваших аккаунтов, данных, а"
-            " также обучит основам обеспечения цифровой гигиены. 🤖 Вам достаточно ежедневно выполнять по"
-            " одной рекомендации.", reply_markup=markup)
+        await bot.send_photo(chat_id=update.message.chat.id,
+                             photo='https://img.freepik.com/free-vector/flat-background-for-safer-internet-day_23-2151127509.jpg?w=2000&t=st=1717694697~exp=1717695297~hmac=edd5b2ffe89d8b2901334e3df3190bffc0ed426ca69706be691a573487acdd33',
+                             caption="Добрый день. Данный бот поможет вам за N дней усилить защиту ваших аккаунтов, данных,"
+                                     " а также обучит основам обеспечения цифровой гигиены. 🤖 Вам достаточно ежедневно"
+                                     " выполнять по одной рекомендации.",
+                             reply_markup=markup)
         return GREETING_STATE
     else:
         reply_keyboard = [['Меню']]
         markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
 
         await bot.send_photo(chat_id=update.message.chat.id,
-                             photo='https://img.freepik.com/free-vector/technical-support-service-site_80328-68.jpg?t=st=1717695596~exp=1717699196~hmac=419f0dc67a3bb3e7fecfe47e9e64615daaee5692bdb3c828e3c2dae5265d1376&w=2000')
-        await update.message.reply_text(
-            f"Добрый день, {user.Name}, давно не виделись! Воспользуйтесь меню.", reply_markup=markup)
+                             photo='https://img.freepik.com/free-vector/technical-support-service-site_80328-68.jpg?t=st=1717695596~exp=1717699196~hmac=419f0dc67a3bb3e7fecfe47e9e64615daaee5692bdb3c828e3c2dae5265d1376&w=2000',
+                             caption=f"Добрый день, {user.Name}, давно не виделись! Воспользуйтесь меню.", reply_markup=markup)
         return SHOW_MENU_STATE
 
 
@@ -494,8 +494,10 @@ async def send_notification(context: ContextTypes.DEFAULT_TYPE):
             recc = recomm.recommendation
             result += f'День {rec.rec_id}. {recc}\n'
 
-    if result == '':
+    if result == '' and sent_recommendations[-1].rec_id != 30:
         context.job.schedule_removal()
+        return
+    if result == '':
         return
 
     result = f'Не выполнено {count_uncomleted_recommendations} рекомендаций:\n' + result
