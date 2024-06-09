@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 PROFILE_SHOW_STATE, PROFILE_EDIT_STATE, PROFILE_EDIT_FIELD_STATE, PROFILE_EDIT_APPLY_STATE = range(4)
 ADVENT_TIMER_STATE, ADVENT_WORK_STATE = range(2)
-RESULTS_SHOW, RESULTS_CHANGE = range(2)
+RESULTS_SHOW, RESULTS_REC_NUM, RESULTS_CHANGE = range(3)
 
 BUTTON_REC_DONE, BUTTON_REC_SKIP, BUTTON_REC_REPORT, BUTTON_REC_SHARE, BUTTON_RUN_TEST = ("button_rec_done",
                                                                                           "button_rec_skip",
@@ -623,10 +623,6 @@ async def send_notification(context: ContextTypes.DEFAULT_TYPE):
     #     await context.bot.delete_message(chat_id=chat_id, message_id=old_message)
 
 
-async def send_results(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    pass
-
-
 async def done_recommendation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -668,7 +664,7 @@ async def skip_recommendation(update, context):
     if user is None:
         return
 
-    await skip_rec(context, user.User_Id, rec_id)
+    await skip_rec(context, user.User_ID, rec_id)
     await context.bot.send_message(chat_id=user.Chat_Id, text=f"Отложена рекомендация №: {rec_id}")
 
 
@@ -886,7 +882,6 @@ async def results(update, context):
 
 async def show_result_next(update, context):
     global last_res_id
-    print(last_res_id)
     db_sess = db_session.create_session()
     chat_id = str(update.message.chat_id)
     if last_res_id > 5:
@@ -905,7 +900,6 @@ async def show_result_next(update, context):
         markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
         recs = f''
         while last_res_id != 0:
-            print(last_res_id)
             rec_new = db_sess.query(Recommendation).filter(Recommendation.id == last_res_id).first()
             recs += f'№ {last_res_id}: {rec_new.recommendation}\n'
             last_res_id -= 1
@@ -913,6 +907,33 @@ async def show_result_next(update, context):
                                        text=recs,
                                        reply_markup=markup)
     return RESULTS_SHOW
+
+
+async def change_results(update, context):
+    chat_id = str(update.message.chat_id)
+    await context.bot.send_message(chat_id=chat_id,
+                                   text='Введите номер рекомендации, статус которой Вы хотели бы изменить')
+    return RESULTS_REC_NUM
+
+
+async def change_status_results(update, context):
+    db_sess = db_session.create_session()
+    chat_id = str(update.message.chat_id)
+    number = update.message.text
+    if not number.isdigit():
+        return RESULTS_REC_NUM
+    rec_new = db_sess.query(Recommendation).filter(Recommendation.id == number).first()
+    keyboard = [
+        [InlineKeyboardButton("Отметить как выполненное", callback_data=f"{BUTTON_REC_DONE}:{number}")],
+        [InlineKeyboardButton("Отложить выполнение", callback_data=f"{BUTTON_REC_SKIP}:{number}")]
+    ]
+    markup = InlineKeyboardMarkup(keyboard)
+    rec = f'№ {number}: {rec_new.recommendation}\n'
+    await context.bot.send_message(chat_id=chat_id,
+                                   text=rec,
+                                   reply_markup=markup)
+    return RESULTS_SHOW
+
 
 def main():
     application = Application.builder().token(BOT_TOKEN).build()
@@ -972,7 +993,8 @@ def main():
     )
 
     application.add_handler(profile_handler)
-    application.add_handler(MessageHandler(filters.Text(["Запустить новогодний адвент по цифровой гигиене"]), start_advent))
+    application.add_handler(
+        MessageHandler(filters.Text(["Запустить новогодний адвент по цифровой гигиене"]), start_advent))
     application.add_handler(MessageHandler(filters.Text(["Рекомендации"]), recomend))
     application.add_handler(MessageHandler(filters.Text(["Пройти тест по цифровой гигиене"]), test_digital_gegeyna))
     application.add_handler(MessageHandler(filters.Text(["Пригласить друзей"]), share))
@@ -982,11 +1004,14 @@ def main():
         entry_points=[MessageHandler(filters.Text(["Результаты выполнения"]), results)],
         states={
             RESULTS_SHOW: [
-                MessageHandler(filters.Text(["Показать далее..."]), show_result_next)
+                MessageHandler(filters.Text(["Показать далее..."]), show_result_next),
+                MessageHandler(filters.Text(["Изменить статус выполнения"]), change_results)
             ],
-            PROFILE_EDIT_FIELD_STATE: [
-                MessageHandler(filters.Text(["Изменить статус выполнения"]), edit_profile_request),
-                MessageHandler(filters.Text(["Назад"]), show_profile)
+            RESULTS_REC_NUM: [
+                MessageHandler(condition, change_status_results)
+            ],
+            RESULTS_CHANGE: [
+                MessageHandler(filters.Text(["Назад"]), results)
             ],
         },
         fallbacks=[
@@ -995,12 +1020,8 @@ def main():
     )
     application.add_handler(results_handler)
 
-    application.add_handler(
-        MessageHandler(filters.Text(["Запустить новогодний адвент по цифровой гигиене"]), set_timer))
-
     application.add_handler(CallbackQueryHandler(done_recommendation, pattern=f"^{BUTTON_REC_DONE}:\\d+$"))
     application.add_handler(CallbackQueryHandler(skip_recommendation, pattern=f"^{BUTTON_REC_SKIP}:\\d+$"))
-    application.add_handler(CallbackQueryHandler(send_results, pattern=f"^{BUTTON_REC_REPORT}"))
     application.add_handler(CallbackQueryHandler(forma_yandex, pattern=f"^{BUTTON_RUN_TEST}$"))
 
     application.run_polling()
