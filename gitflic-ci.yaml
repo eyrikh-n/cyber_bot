@@ -1,0 +1,15 @@
+image: python:3.10
+
+stages:
+  - build_image
+  - push_image
+
+build_image:
+  stage: build_image
+  script:
+    - docker build -t cyber_bot .
+
+push_image:
+  stage: push_image
+  script:
+    - docker push -t cyber_bot .
