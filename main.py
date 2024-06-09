@@ -33,8 +33,6 @@ BUTTON_REC_DONE, BUTTON_REC_SKIP, BUTTON_REC_REPORT, BUTTON_REC_SHARE, BUTTON_RU
                                                                                           "button_rec_share",
                                                                                           "button_run_test")
 
-TEST_DG = 1
-
 REC_STATUS_INIT, REC_STATUS_DONE, REC_STATUS_SKIP = '0', '1', '2'
 
 
