@@ -1,4 +1,5 @@
 import logging
+import os
 from datetime import datetime, timedelta, time
 from typing import Optional
 
@@ -13,7 +14,7 @@ from telegram.ext import Application, MessageHandler, filters, CommandHandler, C
     CallbackQueryHandler, ContextTypes
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton, Update
 
-BOT_TOKEN = '6522784356:AAHB7lKSBukJDq-Tq3SAB9mxql95Cn9Dutg'
+BOT_TOKEN = os.environ.get('API_BOT_TOKEN', '6522784356:AAHB7lKSBukJDq-Tq3SAB9mxql95Cn9Dutg')
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG
 )
