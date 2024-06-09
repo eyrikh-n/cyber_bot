@@ -27,7 +27,11 @@ logger = logging.getLogger(__name__)
 PROFILE_SHOW_STATE, PROFILE_EDIT_STATE, PROFILE_EDIT_FIELD_STATE, PROFILE_EDIT_APPLY_STATE = range(4)
 ADVENT_TIMER_STATE, ADVENT_WORK_STATE = range(2)
 
-REC_BUTTON_DONE, REC_BUTTON_SKIP, REC_BUTTON_REPORT, REC_BUTTON_SHARE = "rec_button_done", "rec_button_skip", "rec_button_report", "rec_button_share"
+BUTTON_REC_DONE, BUTTON_REC_SKIP, BUTTON_REC_REPORT, BUTTON_REC_SHARE, BUTTON_RUN_TEST = ("button_rec_done",
+                                                                                          "button_rec_skip",
+                                                                                          "button_rec_report",
+                                                                                          "button_rec_share",
+                                                                                          "button_run_test")
 
 REC_STATUS_INIT, REC_STATUS_DONE, REC_STATUS_SKIP = '0', '1', '2'
 
@@ -538,8 +542,8 @@ async def send_recommendation(context):
 
     keyboard = [
         [
-            InlineKeyboardButton("Выполнить", callback_data=f"{REC_BUTTON_DONE}:{new_req_id}"),
-            InlineKeyboardButton("Отложить", callback_data=f"{REC_BUTTON_SKIP}:{new_req_id}"),
+            InlineKeyboardButton("Выполнить", callback_data=f"{BUTTON_REC_DONE}:{new_req_id}"),
+            InlineKeyboardButton("Отложить", callback_data=f"{BUTTON_REC_SKIP}:{new_req_id}"),
         ]
     ]
     markup = InlineKeyboardMarkup(keyboard)
@@ -601,7 +605,7 @@ async def send_notification(context: ContextTypes.DEFAULT_TYPE):
     result = f'Не выполнено {count_uncomleted_recommendations} рекомендаций:\n' + result
     keyboard = [
         [
-            InlineKeyboardButton("Сообщить о выполнении", callback_data=f"{REC_BUTTON_REPORT}")
+            InlineKeyboardButton("Сообщить о выполнении", callback_data=f"{BUTTON_REC_REPORT}")
         ]
     ]
     markup = InlineKeyboardMarkup(keyboard)
@@ -753,6 +757,85 @@ async def share(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                              reply_markup=markup)
 
 
+async def send_recomendation_recomend(context):
+    db_sess = db_session.create_session()
+    chat_id = context.job.chat_id
+    list_rec = db_sess.query(Status_recommendation).filter(Status_recommendation.chat_id == chat_id).all()
+    if len(list_rec) != 0:
+        last_rec_id = list_rec[-1].rec_id
+    else:
+        last_rec_id = 0
+    rec_new = db_sess.query(Recommendation).filter(Recommendation.id == last_rec_id).first()
+    if last_rec_id >= 3:
+        rec_new_2 = db_sess.query(Recommendation).filter(Recommendation.id == last_rec_id - 1).first()
+        rec_new_3 = db_sess.query(Recommendation).filter(Recommendation.id == last_rec_id - 2).first()
+    elif last_rec_id == 2:
+        rec_new_2 = db_sess.query(Recommendation).filter(Recommendation.id == last_rec_id - 1).first()
+
+    day = 'День'
+    if last_rec_id >= 3:
+        await context.bot.send_message(chat_id=context.job.chat_id,
+                                       text=f'{day} {last_rec_id}. Сегодня. {rec_new.recommendation}\n{day} {last_rec_id - 1}. {rec_new_2.recommendation}\n{day} {last_rec_id - 2}. {rec_new_3.recommendation}')
+    elif last_rec_id == 2:
+        await context.bot.send_message(chat_id=context.job.chat_id,
+                                       text=f'{day} {last_rec_id}. Сегодня. {rec_new.recommendation}\n{day} {last_rec_id - 1}. {rec_new_2.recommendation}')
+    elif last_rec_id == 1:
+        await context.bot.send_message(chat_id=context.job.chat_id,
+                                       text=f'{day} {last_rec_id}. Сегодня. {rec_new.recommendation}')
+    # db_sess.close()
+
+
+async def recomend(update, context):
+    chat_id = update.message.chat_id
+    db_sess = db_session.create_session()
+    list_rec = db_sess.query(Status_recommendation).filter(Status_recommendation.chat_id == chat_id).all()
+    if len(list_rec) != 0:
+        last_rec_id = list_rec[-1].rec_id
+    else:
+        last_rec_id = 0
+    chat_id = update.message.chat_id
+    name = update.effective_chat.full_name
+    # Ставим будильник для функции `callback_alarm()`
+    context.job_queue.run_once(send_recomendation_recomend, 0, data=name, chat_id=chat_id)
+    if last_rec_id == 0:
+        await update.message.reply_text(
+            'Если список рекомендаций отсутствует, то убедитесь, что вы запустили "Новогодний адвент"')
+    else:
+        await update.message.reply_text('Список рекомендаций.')
+
+
+async def test_digital_gegeyna(update, context):
+    user = await find_user_by_chat_id(update.message.chat_id)
+    if user is None:
+        return
+
+    if await is_advent_completed(user.User_ID):
+        keyboard = [[InlineKeyboardButton("Пройти тест", callback_data=f"{BUTTON_RUN_TEST}")]]
+        markup = InlineKeyboardMarkup(keyboard)
+
+        await update.message.reply_text(
+            'Поздравляем, вы выполнили все рекомендации! '
+            'Хотите пройти проверку знаний и получить звание Джедая ордена Цифровой гигиены и '
+            'возможность скачать стикерпак от Киберпротекта? '
+            'Тогда попробуйте пройти тест!',
+            reply_markup=markup)
+    else:
+        await update.message.reply_text(
+            'Это кнопка станет доступной только после полного прохождения теста по цифровой гигиене')
+
+
+async def forma_yandex(update, context):
+    query = update.callback_query
+    await query.answer()
+
+    chat_id = query.message.chat_id
+    user = await find_user_by_chat_id(chat_id)
+    if user is None:
+        return
+
+    await context.bot.send_message(chat_id=user.Chat_Id, text='https://forms.yandex.ru/u/6663258b5056903972729751/')
+
+
 def main():
     application = Application.builder().token(BOT_TOKEN).build()
 
@@ -811,23 +894,15 @@ def main():
     )
 
     application.add_handler(profile_handler)
+    application.add_handler(MessageHandler(filters.Text(["Запустить новогодний адвент по цифровой гигиене"]), start_advent))
+    application.add_handler(MessageHandler(filters.Text(["Рекомендации"]), recomend))
+    application.add_handler(MessageHandler(filters.Text(["Пройти тест по цифровой гигиене"]), test_digital_gegeyna))
+    application.add_handler(MessageHandler(filters.Text(["Пригласить друзей"]), share))
 
-    share_handler = ConversationHandler(
-        entry_points=[MessageHandler(filters.Text(["Пригласить друзей"]), share)],
-        states={},
-        fallbacks=[
-            MessageHandler(filters.Text(["Меню"]), show_menu),
-        ]
-    )
-
-    application.add_handler(share_handler)
-    application.add_handler(
-        MessageHandler(filters.Text(["Запустить новогодний адвент по цифровой гигиене"]), start_advent))
-
-    application.add_handler(CallbackQueryHandler(done_recommendation, pattern=f"^{REC_BUTTON_DONE}:\\d+$"))
-    application.add_handler(CallbackQueryHandler(skip_recommendation, pattern=f"^{REC_BUTTON_SKIP}:\\d+$"))
-
-    application.add_handler(CallbackQueryHandler(send_results, pattern=f"^{REC_BUTTON_REPORT}"))
+    application.add_handler(CallbackQueryHandler(done_recommendation, pattern=f"^{BUTTON_REC_DONE}:\\d+$"))
+    application.add_handler(CallbackQueryHandler(skip_recommendation, pattern=f"^{BUTTON_REC_SKIP}:\\d+$"))
+    application.add_handler(CallbackQueryHandler(send_results, pattern=f"^{BUTTON_REC_REPORT}"))
+    application.add_handler(CallbackQueryHandler(forma_yandex, pattern=f"^{BUTTON_RUN_TEST}$"))
 
     application.run_polling()
 
