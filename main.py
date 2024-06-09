@@ -10,7 +10,7 @@ from data.users import User
 from data.recommendations import Recommendation
 from data.status_recommendation import Status_recommendation
 from telegram.ext import Application, MessageHandler, filters, CommandHandler, ConversationHandler, CallbackContext, \
-    CallbackQueryHandler, ContextTypes, Updater
+    CallbackQueryHandler, ContextTypes
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton, Update
 
 BOT_TOKEN = '6522784356:AAHB7lKSBukJDq-Tq3SAB9mxql95Cn9Dutg'
@@ -47,7 +47,20 @@ async def get_timezone_by_utc_offset(utc_offset: timedelta) -> str:
 
 async def help(update, context):
     """Отправляет сообщение когда получена команда /help"""
-    await update.message.reply_text("Этот чат-бот предназначен для повышения уровня знаний цифровой гигиены и помощи в усилении безопасности существующих аккаунтов и чувствительных данных.\n После регистрации вам будет доступно меню, благодаря которому вы можете общаться с ботом. Чтобы изменить данные, заданные по регистрации, можно перейти по кнопке Мой профиль и далее в Редактировать данные и поменять нужный параметр.\n Чтобы запустить рассылку рекомендаций, нужно нажать на кнопку Запустить новогодний адвент по цифровой гигиене. После нажатия вам будут подаваться рекомендации в зависимости от выбранного графика(ежедневно, рабочие, выходные дни).\n Вам следует выполнять наши рекомендации и отмечать это в боте(по кнопке выполнить или отложить). Также вы можете посмотреть выданные рекомендации по кнопке Рекомендации и изменить статус их выполнения в Результаты выполнения.\n Кнопка Пригласить друзей поможет вам сделать ваших друзей более грамотными в цифровой среде и поделиться с ними ссылкой на нашего бота. Чтобы проверить свои знания, можно пройти тест по кнопке Пройти тест по цифровой гигиене.")
+    await update.message.reply_text("Этот чат-бот предназначен для повышения уровня знаний цифровой гигиены и помощи "
+                                    "в усилении безопасности существующих аккаунтов и чувствительных данных.\n После "
+                                    "регистрации вам будет доступно меню, благодаря которому вы можете общаться с "
+                                    "ботом. Чтобы изменить данные, заданные по регистрации, можно перейти по кнопке "
+                                    "Мой профиль и далее в Редактировать данные и поменять нужный параметр.\n Чтобы "
+                                    "запустить рассылку рекомендаций, нужно нажать на кнопку Запустить новогодний "
+                                    "адвент по цифровой гигиене. После нажатия вам будут подаваться рекомендации в "
+                                    "зависимости от выбранного графика(ежедневно, рабочие, выходные дни).\n Вам "
+                                    "следует выполнять наши рекомендации и отмечать это в боте(по кнопке выполнить "
+                                    "или отложить). Также вы можете посмотреть выданные рекомендации по кнопке "
+                                    "Рекомендации и изменить статус их выполнения в Результаты выполнения.\n Кнопка "
+                                    "Пригласить друзей поможет вам сделать ваших друзей более грамотными в цифровой "
+                                    "среде и поделиться с ними ссылкой на нашего бота. Чтобы проверить свои знания, "
+                                    "можно пройти тест по кнопке Пройти тест по цифровой гигиене.")
 
 
 async def stop(update, context):
@@ -99,14 +112,19 @@ async def get_recommendation_info_by_id(rec_id: int) -> Optional[Recommendation]
 async def is_all_recommendation_sent(user_id: str) -> bool:
     # Определяем количество рекомендаций, которые в принципе нужно было отправить
     recommendations_count = await get_recommendation_count()
+    sent_recommendations_count = await sent_recommendation_count(user_id)
+    return sent_recommendations_count >= recommendations_count
 
+
+# Количество отправленных рекомендаций пользователю
+async def sent_recommendation_count(user_id: str) -> int:
     db_sess = db_session.create_session()
     sent_recommendations_count = (db_sess.query(Status_recommendation)
                                   .filter(Status_recommendation.user_id == user_id)
                                   .count()
                                   )
     db_sess.close()
-    return sent_recommendations_count >= recommendations_count
+    return sent_recommendations_count
 
 
 # Выполнил ли пользователь адвент
@@ -387,7 +405,6 @@ async def edit_profile(update, context):
         Status_recommendation.user_id == user.User_ID).all()
     db_sess.close()
 
-    # TODO: Проверить логику, в каком случае показывать эти кнопки
     if len(sent_recommendations) == 0:
         reply_keyboard = [['Имя', 'Возраст', 'Пол', 'График', 'Время'], ["Период напоминаний", 'Назад']]
     else:
@@ -413,14 +430,12 @@ async def edit_profile_request(update, context):
         markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
         await update.message.reply_text("Укажите новый пол", reply_markup=markup)
     elif message_text == "График":
-        # TODO: Не давать изменить график, если ты уже подписался на advent
         reply_keyboard = [['Ежедневно'], ['Рабочие', 'Выходные дни']]
         markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
         await update.message.reply_text("Сформируйте удобный для вас график получения"
                                         " рекомендаций и уведомлений. Какой график для вас удобен?",
                                         reply_markup=markup)
     elif message_text == "График":
-        # TODO: Не давать изменить график, если ты уже подписался на advent
         reply_keyboard = [['Ежедневно'], ['Рабочие', 'Выходные дни']]
         markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
         await update.message.reply_text("Сформируйте удобный для вас график получения"
@@ -802,7 +817,8 @@ async def show_recommendation(update, context):
         else:
             result += f'*День {rec.rec_id}.* {rec_info.recommendation}\n'
 
-    await context.bot.send_message(chat_id=user.Chat_Id, text=f'Список трех последних рекомендаций:\n\n{result}', parse_mode='markdown')
+    await context.bot.send_message(chat_id=user.Chat_Id, text=f'Список трех последних рекомендаций:\n\n{result}',
+                                   parse_mode='markdown')
 
 
 async def test_digital_gegeyna(update, context):
@@ -837,79 +853,96 @@ async def forma_yandex(update, context):
     await context.bot.send_message(chat_id=user.Chat_Id, text='https://forms.yandex.ru/u/6663258b5056903972729751/')
 
 
-async def results(update, context):
-    global last_res_id
-    chat_id = str(update.message.chat_id)
+# Получить страницу с отправленными рекомендациями
+async def get_recommendation_page(user_id: str, page_num: int, page_size: int) -> str:
+    db_sess = db_session.create_session()
+    # Получаем пять последних отправленных рекомендаций пользователю
+    sent_recommendations = (db_sess.query(Status_recommendation)
+                            .filter(Status_recommendation.user_id == user_id)
+                            .order_by(Status_recommendation.rec_id.desc())
+                            .offset(page_num * page_size)
+                            .limit(page_size)
+                            .all())
+    result = ''
+    for idx, rec in enumerate(sent_recommendations):
+        rec_info = await get_recommendation_info_by_id(rec.rec_id)
+        if rec_info is None:
+            continue
+        if rec.rec_status == REC_STATUS_DONE:
+            visualize = '🟢'
+        elif rec.rec_status == REC_STATUS_SKIP:
+            visualize = '🔴'
+        else:
+            visualize = '⚪️'
+        result += f'{visualize} № {rec.rec_id}: {rec_info.recommendation}\n'
+    return result
+
+
+async def show_result_query(update, context):
+    query = update.callback_query
+    await query.answer()
+    return await show_results(update, context)
+
+
+async def show_results(update, context):
+    if not (update.callback_query is None):
+        query = update.callback_query
+        await query.answer()
+        chat_id = query.message.chat_id
+    else:
+        chat_id = update.message.chat_id
 
     user = await find_user_by_chat_id(chat_id)
     if user is None:
         await context.bot.send_message(chat_id=chat_id, text='Пользователь не найден.')
         return
 
-    db_sess = db_session.create_session()
-
-    # Получаем все ранее отправленные рекомендации этому пользователю
-    sent_recommendations = db_sess.query(Status_recommendation).filter(
-        Status_recommendation.user_id == user.User_ID).all()
-    # Если ранее уже отправлялись рекомендации, то определяем последнюю отправленную, иначе используем первую
-    if len(sent_recommendations) != 0:
-        last_res_id = sent_recommendations[-1].rec_id
-    else:
-        await context.bot.send_message(chat_id=chat_id, text='Ни одной рекомендации не было отправлено.')
-        context.job_queue.stop()
+    # Определяем количество отправленных рекомендаций
+    rec_count = await sent_recommendation_count(user.User_ID)
+    if rec_count == 0:
+        await context.bot.send_message(chat_id=user.Chat_Id, text='Ни одной рекомендации не было отправлено.')
         return
 
-    if last_res_id > 5:
+    page_size = 5
+    page_count = rec_count // page_size
+    page_num = 0
+
+    if page_num < (page_count-1):
         reply_keyboard = [['Показать далее...', 'Изменить статус выполнения', 'Меню']]
-        markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
-        recs = f''
-        for _ in range(5):
-            rec_new = db_sess.query(Recommendation).filter(Recommendation.id == last_res_id).first()
-            recs += f'№ {last_res_id}: {rec_new.recommendation}\n'
-            last_res_id -= 1
-        await context.bot.send_message(chat_id=chat_id,
-                                       text=recs,
-                                       reply_markup=markup)
     else:
         reply_keyboard = [['Изменить статус выполнения', 'Меню']]
-        markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
-        recs = f''
-        while last_res_id != 0:
-            rec_new = db_sess.query(Recommendation).filter(Recommendation.id == last_res_id).first()
-            recs += f'№ {last_res_id}: {rec_new.recommendation}\n'
-            last_res_id -= 1
-        await context.bot.send_message(chat_id=chat_id,
-                                       text=recs,
-                                       reply_markup=markup)
+
+    result = await get_recommendation_page(user.User_ID, page_num, page_size)
+    markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
+    await context.bot.send_message(chat_id=user.Chat_Id, text=f'Результат выполнения:\n\n{result}',
+                                   parse_mode='HTML', reply_markup=markup)
+
+    context.user_data['page_size'] = page_size
+    context.user_data['page_count'] = page_count
+    context.user_data['page_num'] = page_num
     return RESULTS_SHOW
 
 
 async def show_result_next(update, context):
-    global last_res_id
-    db_sess = db_session.create_session()
-    chat_id = str(update.message.chat_id)
-    if last_res_id > 5:
+    user = await find_user_by_chat_id(update.message.chat_id)
+    if user is None:
+        return
+
+    page_size = context.user_data['page_size']
+    page_count = context.user_data['page_count']
+    page_num = context.user_data['page_num'] + 1
+
+    if page_num < (page_count-1):
         reply_keyboard = [['Показать далее...', 'Изменить статус выполнения', 'Меню']]
-        markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
-        recs = f''
-        for _ in range(5):
-            rec_new = db_sess.query(Recommendation).filter(Recommendation.id == last_res_id).first()
-            recs += f'№ {last_res_id}: {rec_new.recommendation}\n'
-            last_res_id -= 1
-        await context.bot.send_message(chat_id=chat_id,
-                                       text=recs,
-                                       reply_markup=markup)
     else:
         reply_keyboard = [['Изменить статус выполнения', 'Меню']]
-        markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
-        recs = f''
-        while last_res_id != 0:
-            rec_new = db_sess.query(Recommendation).filter(Recommendation.id == last_res_id).first()
-            recs += f'№ {last_res_id}: {rec_new.recommendation}\n'
-            last_res_id -= 1
-        await context.bot.send_message(chat_id=chat_id,
-                                       text=recs,
-                                       reply_markup=markup)
+
+    result = await get_recommendation_page(user.User_ID, page_num, page_size)
+    markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
+    await context.bot.send_message(chat_id=user.Chat_Id, text=f'Результат выполнения:\n\n{result}',
+                                   parse_mode='HTML', reply_markup=markup)
+
+    context.user_data['page_num'] = page_num
     return RESULTS_SHOW
 
 
@@ -921,21 +954,25 @@ async def change_results(update, context):
 
 
 async def change_status_results(update, context):
-    db_sess = db_session.create_session()
     chat_id = str(update.message.chat_id)
-    number = update.message.text
-    if not number.isdigit():
+
+    rec_id = update.message.text
+    if not rec_id.isdigit():
+        await context.bot.send_message(chat_id=chat_id, text="Введите номер рекомендации!")
         return RESULTS_REC_NUM
-    rec_new = db_sess.query(Recommendation).filter(Recommendation.id == number).first()
+
+    rec_info = await get_recommendation_info_by_id(update.message.text)
+    if rec_info is None:
+        await context.bot.send_message(chat_id=chat_id, text="Рекомендации с таким номером не найдена!")
+        return RESULTS_REC_NUM
+
     keyboard = [
-        [InlineKeyboardButton("Отметить как выполненное", callback_data=f"{BUTTON_REC_DONE}:{number}")],
-        [InlineKeyboardButton("Отложить выполнение", callback_data=f"{BUTTON_REC_SKIP}:{number}")]
+        [InlineKeyboardButton("Отметить как выполненное", callback_data=f"{BUTTON_REC_DONE}:{rec_id}")],
+        [InlineKeyboardButton("Отложить выполнение", callback_data=f"{BUTTON_REC_SKIP}:{rec_id}")]
     ]
     markup = InlineKeyboardMarkup(keyboard)
-    rec = f'№ {number}: {rec_new.recommendation}\n'
-    await context.bot.send_message(chat_id=chat_id,
-                                   text=rec,
-                                   reply_markup=markup)
+    rec = f'№ {rec_id}: {rec_info.recommendation}\n'
+    await context.bot.send_message(chat_id=chat_id, text=rec, reply_markup=markup)
     return RESULTS_SHOW
 
 
@@ -1006,7 +1043,10 @@ def main():
 
     # Обработка кнопки "Результаты выполнения"
     results_handler = ConversationHandler(
-        entry_points=[MessageHandler(filters.Text(["Результаты выполнения"]), results)],
+        entry_points=[
+            MessageHandler(filters.Text(["Результаты выполнения"]), show_results),
+            CallbackQueryHandler(show_result_query, pattern=f"^{BUTTON_REC_REPORT}")
+        ],
         states={
             RESULTS_SHOW: [
                 MessageHandler(filters.Text(["Показать далее..."]), show_result_next),
@@ -1016,7 +1056,7 @@ def main():
                 MessageHandler(condition, change_status_results)
             ],
             RESULTS_CHANGE: [
-                MessageHandler(filters.Text(["Назад"]), results)
+                MessageHandler(filters.Text(["Назад"]), show_results)
             ],
         },
         fallbacks=[
@@ -1028,6 +1068,7 @@ def main():
     application.add_handler(CallbackQueryHandler(done_recommendation, pattern=f"^{BUTTON_REC_DONE}:\\d+$"))
     application.add_handler(CallbackQueryHandler(skip_recommendation, pattern=f"^{BUTTON_REC_SKIP}:\\d+$"))
     application.add_handler(CallbackQueryHandler(forma_yandex, pattern=f"^{BUTTON_RUN_TEST}$"))
+    application.add_handler(CallbackQueryHandler(results_handler.entry_points[0].callback, pattern=f"^{BUTTON_REC_REPORT}"))
 
     application.run_polling()
 
