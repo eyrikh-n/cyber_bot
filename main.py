@@ -28,9 +28,8 @@ PROFILE_SHOW_STATE, PROFILE_EDIT_STATE, PROFILE_EDIT_FIELD_STATE, PROFILE_EDIT_A
 ADVENT_TIMER_STATE, ADVENT_WORK_STATE = range(2)
 
 REC_BUTTON_DONE, REC_BUTTON_SKIP, REC_BUTTON_REPORT, REC_BUTTON_SHARE = "rec_button_done", "rec_button_skip", "rec_button_report", "rec_button_share"
-RECOMEND  = range(1)
-TEST_DG = range(1)
-trig = False
+
+TEST_DG = 1
 
 REC_STATUS_INIT, REC_STATUS_DONE, REC_STATUS_SKIP = '0', '1', '2'
 
@@ -797,6 +796,7 @@ async def recomend(update, context):
         await update.message.reply_text('Если список рекомендаций отсутствует, то убедитесь, что вы запустили "Новогодний адвент"')
     else:
         await update.message.reply_text('Список рекомендаций.')
+
 
 async def test_digital_gegeyna(update, context):
     count = 0
