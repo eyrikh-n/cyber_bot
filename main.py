@@ -328,10 +328,7 @@ def create_profile(update, context):
 
 
 async def show_menu(update, context):
-    db_sess = db_session.create_session()
-    username = str(update.message.from_user.username)
-    user = db_sess.query(User).filter(User.UserName == username).first()
-    db_sess.close()
+    user = await find_user_by_chat_id(update.message.chat.id)
 
     reply_keyboard = [['Мой профиль', 'Рекомендации']]
     if user and (user.Advent_Start is None):
@@ -354,11 +351,7 @@ async def show_profile(update, context):
     reply_keyboard = [['Редактировать данные'], ['Меню']]
     markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
 
-    db_sess = db_session.create_session()
-    username = str(update.message.from_user.username)
-    user = db_sess.query(User).filter(User.UserName == username).first()
-    db_sess.close()
-
+    user = await find_user_by_chat_id(update.message.chat.id)
     reply_text = ("Профиль (новый) 🔽 \n"
                   f"💠 Имя - {user.Name} \n"
                   f"💠 График - {user.Schedule} \n"
@@ -482,10 +475,7 @@ async def edit_profile_apply(update, context):
             await update.message.reply_text("Значение, которое вы ввели не является числом 😜, попробуйте ещё раз")
             return PROFILE_EDIT_APPLY_STATE
 
-    db_sess = db_session.create_session()
-    username = str(update.message.from_user.username)
-    user = db_sess.query(User).filter(User.UserName == username).first()
-    db_sess.close()
+    user = await find_user_by_chat_id(update.message.chat.id)
 
     user.Name = context.user_data.get('name', user.Name)
     user.Age_Group = context.user_data.get('age', user.Age_Group)
@@ -605,9 +595,6 @@ async def send_notification(context: ContextTypes.DEFAULT_TYPE):
             result += f'День {rec.rec_id}. {recc}\n'
     db_sess.close()
 
-    #    if result == '' and sent_recommendations[-1].rec_id != 30:
-    # context.job.schedule_removal()
-    #       return
     if result == '':
         return
 
