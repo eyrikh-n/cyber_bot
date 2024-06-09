@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 from typing import Optional
 
 import pytz
@@ -675,17 +675,34 @@ async def run_recommendation_job(context, chat_id):
     user = await find_user_by_chat_id(chat_id)
     if user is None:
         return
-    # TODO: Нужно запускать в зависимости от временных настроек пользователя
+
+    user_tz = pytz.timezone(user.Timezone)
+    user_time = datetime.strptime(user.Time, '%H:%M')
 
     # Запуск рекомендаций только если не все рекомендации были отправлены
     if not await is_all_recommendation_sent(user.User_ID):
-        context.job_queue.run_repeating(send_recommendation, 5, name=build_job_rec_name(user.Chat_Id), data=user.Name,
-                                        chat_id=user.Chat_Id)
+        sent_time = time(user_time.hour, user_time.minute, 00, tzinfo=user_tz)
+        sent_days = (0, 1, 2, 3, 4, 5, 6)
+        if user.Schedule == "Рабочие дни":
+            sent_days = (0, 1, 2, 3, 4)
+        elif user.Schedule == 'Выходные дни':
+            sent_days = (5, 6)
+
+        # Ежедневный запуск задачи
+        context.job_queue.run_daily(send_recommendation, name=build_job_rec_name(user.Chat_Id),
+                                    time=sent_time, days=sent_days, data=user.Name, chat_id=user.Chat_Id)
 
     # Запуск напоминаний только если не завершен адвент
     if not await is_advent_completed(user.User_ID):
-        context.job_queue.run_repeating(send_notification, 10, name=build_job_not_name(user.Chat_Id), data=user.Name,
-                                        chat_id=user.Chat_Id)
+        # Напоминание отправляем после отправки рекомендации на 30 мин позже
+        sent_datetime = (user_tz.localize(
+            datetime.combine(datetime.today(), time(user_time.hour, user_time.minute, 00)), is_dst=None) +
+                         timedelta(minutes=30))
+
+        # Запускаем задачу с отправкой напоминаний с пользовательским интервалом
+        context.job_queue.run_repeating(send_notification, name=build_job_not_name(user.Chat_Id),
+                                        first=sent_datetime, interval=timedelta(days=int(user.Period)),
+                                        data=user.Name, chat_id=user.Chat_Id)
 
 
 async def start_advent(update, context):
