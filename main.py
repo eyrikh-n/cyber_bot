@@ -562,7 +562,7 @@ async def send_recommendation(context):
     stat_rec.send_time = datetime.now()
     stat_rec.message_id = message.message_id
     stat_rec.rec_id = new_req_id
-    stat_rec.rec_status = 0
+    stat_rec.rec_status = REC_STATUS_INIT
 
     db_sess = db_session.create_session()
     db_sess.add(stat_rec)
@@ -667,7 +667,7 @@ async def skip_recommendation(update, context):
     if user is None:
         return
 
-    await skip_rec(context, user.User_Id, rec_id)
+    await skip_rec(context, user.User_ID, rec_id)
     await context.bot.send_message(chat_id=user.Chat_Id, text=f"Отложена рекомендация №: {rec_id}")
 
 
