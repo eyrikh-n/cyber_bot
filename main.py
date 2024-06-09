@@ -771,15 +771,13 @@ async def send_recomendation_recomend(context):
     elif last_rec_id == 2:
         rec_new_2 = db_sess.query(Recommendation).filter(Recommendation.id == last_rec_id - 1).first()
 
-    reply_keyboard = [['Меню']]
-    markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
     day = 'День'
     if last_rec_id >= 3:
-        await context.bot.send_message(chat_id=context.job.chat_id, text=f'{day} {last_rec_id}. Сегодня. {rec_new.recommendation}\n{day} {last_rec_id - 1}. {rec_new_2.recommendation}\n{day} {last_rec_id - 2}. {rec_new_3.recommendation}', reply_markup=markup)
+        await context.bot.send_message(chat_id=context.job.chat_id, text=f'{day} {last_rec_id}. Сегодня. {rec_new.recommendation}\n{day} {last_rec_id - 1}. {rec_new_2.recommendation}\n{day} {last_rec_id - 2}. {rec_new_3.recommendation}')
     elif last_rec_id == 2:
-        await context.bot.send_message(chat_id=context.job.chat_id, text=f'{day} {last_rec_id}. Сегодня. {rec_new.recommendation}\n{day} {last_rec_id - 1}. {rec_new_2.recommendation}', reply_markup=markup)
+        await context.bot.send_message(chat_id=context.job.chat_id, text=f'{day} {last_rec_id}. Сегодня. {rec_new.recommendation}\n{day} {last_rec_id - 1}. {rec_new_2.recommendation}')
     elif last_rec_id == 1:
-        await context.bot.send_message(chat_id=context.job.chat_id, text=f'{day} {last_rec_id}. Сегодня. {rec_new.recommendation}', reply_markup=markup)
+        await context.bot.send_message(chat_id=context.job.chat_id, text=f'{day} {last_rec_id}. Сегодня. {rec_new.recommendation}')
     # db_sess.close()
 
 
@@ -795,13 +793,10 @@ async def recomend(update, context):
     name = update.effective_chat.full_name
     # Ставим будильник для функции `callback_alarm()`
     context.job_queue.run_once(send_recomendation_recomend, 0, data=name, chat_id=chat_id)
-    reply_keyboard = [['Меню']]
-    markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
     if last_rec_id == 0:
         await update.message.reply_text('Если список рекомендаций отсутствует, то убедитесь, что вы запустили "Новогодний адвент"')
     else:
-        await update.message.reply_text('Список рекомендаций.', reply_markup=markup)
-    return RECOMEND
+        await update.message.reply_text('Список рекомендаций.')
 
 async def test_digital_gegeyna(update, context):
     count = 0
@@ -887,25 +882,7 @@ def main():
 
     application.add_handler(profile_handler)
 
-    share_handler = ConversationHandler(
-        entry_points=[MessageHandler(filters.Text(["Пригласить друзей"]), share)],
-        states={},
-        fallbacks=[
-            MessageHandler(filters.Text(["Меню"]), show_menu),
-        ]
-    )
-    recomend_handler = ConversationHandler(
-        entry_points=[MessageHandler(filters.Text(["Рекомендации"]), recomend)],
-        states={
-            RECOMEND: [
-                MessageHandler(filters.Text(["Меню"]), show_menu)
-            ]
-        },
-        fallbacks=[
-            MessageHandler(filters.Text(["Меню"]), show_menu),
-        ]
-    )
-    test_DG_handler = ConversationHandler(
+    test_dg_handler = ConversationHandler(
         entry_points=[MessageHandler(filters.Text(["Пройти тест по цифровой гигиене"]), test_digital_gegeyna)],
         states={
             TEST_DG: [
@@ -916,11 +893,12 @@ def main():
             MessageHandler(filters.Text(['Меню']), test_digital_gegeyna)
         ]
     )
-    application.add_handler(test_DG_handler)
-    application.add_handler(recomend_handler)
-    application.add_handler(share_handler)
+    application.add_handler(test_dg_handler)
+
     application.add_handler(
         MessageHandler(filters.Text(["Запустить новогодний адвент по цифровой гигиене"]), start_advent))
+    application.add_handler(MessageHandler(filters.Text(["Рекомендации"]), recomend))
+    application.add_handler(MessageHandler(filters.Text(["Пригласить друзей"]), share))
 
     application.add_handler(CallbackQueryHandler(done_recommendation, pattern=f"^{REC_BUTTON_DONE}:\\d+$"))
     application.add_handler(CallbackQueryHandler(skip_recommendation, pattern=f"^{REC_BUTTON_SKIP}:\\d+$"))
