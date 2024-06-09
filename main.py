@@ -46,7 +46,7 @@ async def get_timezone_by_utc_offset(utc_offset: timedelta) -> str:
 
 async def help(update, context):
     """Отправляет сообщение когда получена команда /help"""
-    await update.message.reply_text("Я умею вести диалог из двух вопросов.")
+    await update.message.reply_text("Этот чат-бот предназначен для повышения уровня знаний цифровой гигиены и помощи в усилении безопасности существующих аккаунтов и чувствительных данных.\n После регистрации вам будет доступно меню, благодаря которому вы можете общаться с ботом. Чтобы изменить данные, заданные по регистрации, можно перейти по кнопке Мой профиль и далее в Редактировать данные и поменять нужный параметр.\n Чтобы запустить рассылку рекомендаций, нужно нажать на кнопку Запустить новогодний адвент по цифровой гигиене. После нажатия вам будут подаваться рекомендации в зависимости от выбранного графика(ежедневно, рабочие, выходные дни).\n Вам следует выполнять наши рекомендации и отмечать это в боте(по кнопке выполнить или отложить). Также вы можете посмотреть выданные рекомендации по кнопке Рекомендации и изменить статус их выполнения в Результаты выполнения.\n Кнопка Пригласить друзей поможет вам сделать ваших друзей более грамотными в цифровой среде и поделиться с ними ссылкой на нашего бота. Чтобы проверить свои знания, можно пройти тест по кнопке Пройти тест по цифровой гигиене.")
 
 
 async def stop(update, context):
@@ -898,6 +898,7 @@ def main():
     application.add_handler(MessageHandler(filters.Text(["Рекомендации"]), recomend))
     application.add_handler(MessageHandler(filters.Text(["Пройти тест по цифровой гигиене"]), test_digital_gegeyna))
     application.add_handler(MessageHandler(filters.Text(["Пригласить друзей"]), share))
+    application.add_handler(MessageHandler(filters.Text(["Помощь"]), help))
 
     application.add_handler(CallbackQueryHandler(done_recommendation, pattern=f"^{BUTTON_REC_DONE}:\\d+$"))
     application.add_handler(CallbackQueryHandler(skip_recommendation, pattern=f"^{BUTTON_REC_SKIP}:\\d+$"))
