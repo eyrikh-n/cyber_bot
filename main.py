@@ -24,7 +24,7 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG
 )
 bot = telegram.Bot(token=BOT_TOKEN)
-db_session.global_init("db/data_base.db")
+db_session.global_init()
 logger = logging.getLogger(__name__)
 
 (GREETING_STATE, REGISTRATION_STATE, NAME_STATE, SCHEDULE_STATE, SEX_STATE,
@@ -79,10 +79,54 @@ async def stop(update, context):
     return ConversationHandler.END
 
 
+def init_recommendations():
+    db_sess = db_session.create_session()
+    rec_count = db_sess.query(Recommendation).count()
+    if rec_count > 0:
+        return
+
+    db_sess.add(Recommendation(recommendation='Установите обновление ПО на своём устройстве'))
+    db_sess.add(Recommendation(recommendation='Обновите пароли от аккаунтов социальных сетей'))
+    db_sess.add(Recommendation(recommendation='Отключите автоматическое подключение к Bluetooth и Wi-Fi'))
+    db_sess.add(Recommendation(recommendation='Зашифруйте свои персональные данные'))
+    db_sess.add(Recommendation(recommendation='Подключите двухфакторную аутентификацию для своих аккаунтов'))
+    db_sess.add(Recommendation(recommendation='Проверьте наличие несанкционированных приложений на своём устройств'))
+    db_sess.add(Recommendation(recommendation='Сделайте резервное копирование чатов в любом мессенджере'))
+    db_sess.add(Recommendation(recommendation='Ограничьте разрешения любого приложения на устройстве'))
+    db_sess.add(Recommendation(recommendation='Поставьте надёжный пароль на телефон'))
+    db_sess.add(Recommendation(recommendation='Включите дистанционнное удаление данных с телефона'))
+    db_sess.add(Recommendation(recommendation='Установите антивирусное ПО на всех своих устройствах'))
+    db_sess.add(Recommendation(recommendation='Проверьте любую компанию на наличие сертификата кибезопасности'))
+    db_sess.add(Recommendation(recommendation='Ограничьте доступ к вашим страницам в социальных сетях'))
+    db_sess.add(Recommendation(recommendation='Установите вход по отпечатку пальца для ваших устройств'))
+    db_sess.add(Recommendation(recommendation='Зарегистрируйтесь на сайте, прочитав политику конфиденциальности'))
+    db_sess.add(Recommendation(recommendation='Обновите антивирусное ПО на вашем устройстве'))
+    db_sess.add(Recommendation(recommendation='Сделайте резервное копирование данных вашего устройства'))
+    db_sess.add(Recommendation(recommendation='"Почистите" список друзей в любой социальной сети'))
+    db_sess.add(Recommendation(recommendation='Смените пароль вашей электронной почты'))
+    db_sess.add(Recommendation(recommendation='"Почистите" электронный ящик от ненужных или подозрительных писем'))
+    db_sess.add(Recommendation(recommendation='Выйдите с аккаунта в социальной сети со всех устройств, кроме своего'))
+    db_sess.add(Recommendation(
+        recommendation='Заблокируйте подозрительные аккауты, которые оставили заявку в друзья, в любом мессенджере или социальной сети'))
+    db_sess.add(
+        Recommendation(recommendation='Очистите чаты мессенджера от ненужной информации или просто удалите чат'))
+    db_sess.add(Recommendation(
+        recommendation='Обновите приложение мессенджера (если имеется), так как оно может содержать улучшение в области безопасности'))
+    db_sess.add(Recommendation(recommendation='Проверьте вкладку "Спам" вашего электронного ящика'))
+    db_sess.add(Recommendation(recommendation='Проведите разбор файлов вашего электронного диска и удалите ненужное'))
+    db_sess.add(Recommendation(recommendation='Отключите геолокацию на вашем устройстве'))
+    db_sess.add(Recommendation(recommendation='Удалите неиспользуемые аккаунты'))
+    db_sess.add(
+        Recommendation(recommendation='Удалите подозрительные или неиспользуемые приложения на вашем устройстве'))
+    db_sess.add(Recommendation(recommendation='Заблокируте подозрительные чаты, предлагающие работу и т.д.'))
+    db_sess.commit()
+    db_sess.close()
+
+
 # Получить пользователя по идентификатору чата
 async def find_user_by_chat_id(chat_id: str) -> Optional[User]:
     db_sess = db_session.create_session()
-    result = db_sess.query(User).filter(User.Chat_Id == chat_id).first()
+    result = db_sess.query(User).filter(User.Chat_Id == str(chat_id)).first()
     db_sess.close()
     return result
 
@@ -918,7 +962,7 @@ async def show_results(update, context):
     page_count = rec_count // page_size
     page_num = 0
 
-    if page_num < (page_count-1):
+    if page_count > 1:
         reply_keyboard = [['Показать далее...', 'Изменить статус выполнения', 'Меню']]
     else:
         reply_keyboard = [['Изменить статус выполнения', 'Меню']]
@@ -994,7 +1038,9 @@ def run_web_server():
 
 
 def main():
-    threading.Thread(target=run_web_server, daemon=True).start()
+    threading.Thread(target=run_web_server, daemon=False).start()
+
+    init_recommendations()
 
     application = Application.builder().token(BOT_TOKEN).build()
 
