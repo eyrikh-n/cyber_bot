@@ -715,10 +715,6 @@ async def run_recommendation_job(context, chat_id):
                                         first=sent_datetime, interval=timedelta(days=int(user.Period)),
                                         data=user.Name, chat_id=user.Chat_Id)
 
-    # TODO: Для тестирования
-    # context.job_queue.run_repeating(send_recommendation, 5, name=build_job_rec_name(user.Chat_Id), data=user.Name, chat_id=user.Chat_Id)
-    # context.job_queue.run_repeating(send_notification, 10, name=build_job_not_name(user.Chat_Id), data=user.Name, chat_id=user.Chat_Id)
-
 
 async def start_advent(update, context):
     chat_id = update.message.chat_id
