@@ -1,8 +1,10 @@
 import logging
 import os
+import threading
 from datetime import datetime, timedelta, time
 from typing import Optional
 
+from flask import Flask
 import pytz
 from sqlalchemy import func
 import telegram
@@ -13,6 +15,9 @@ from data.status_recommendation import Status_recommendation
 from telegram.ext import Application, MessageHandler, filters, CommandHandler, ConversationHandler, CallbackContext, \
     CallbackQueryHandler, ContextTypes
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton, Update
+
+web = Flask(__name__)
+
 
 BOT_TOKEN = os.environ.get('API_BOT_TOKEN', '6522784356:AAHB7lKSBukJDq-Tq3SAB9mxql95Cn9Dutg')
 logging.basicConfig(
@@ -36,6 +41,11 @@ BUTTON_REC_DONE, BUTTON_REC_SKIP, BUTTON_REC_REPORT, BUTTON_REC_SHARE, BUTTON_RU
                                                                                           "button_run_test")
 
 REC_STATUS_INIT, REC_STATUS_DONE, REC_STATUS_SKIP = '0', '1', '2'
+
+
+@web.route("/health")
+def health():
+    return '{"Up!"}'
 
 
 async def get_timezone_by_utc_offset(utc_offset: timedelta) -> str:
@@ -977,7 +987,15 @@ async def change_status_results(update, context):
     return RESULTS_SHOW
 
 
+def run_web_server():
+    port = int(os.environ.get("PORT", 5000))
+    print(f"Web-server starting on port {port}")
+    web.run(host='0.0.0.0', port=port)
+
+
 def main():
+    threading.Thread(target=run_web_server, daemon=True).start()
+
     application = Application.builder().token(BOT_TOKEN).build()
 
     # Возобновление отправки рекомендаций после рестарта
