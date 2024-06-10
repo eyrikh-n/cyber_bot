@@ -24,6 +24,7 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG
 )
 bot = telegram.Bot(token=BOT_TOKEN)
+bot_url = os.environ.get('BOT_URL', 'https://t.me/Cyber_safeness_bot')
 db_session.global_init()
 logger = logging.getLogger(__name__)
 
@@ -828,7 +829,7 @@ async def share(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     keyboard = [
         [
-            InlineKeyboardButton("Поделиться", url='https://t.me/share/url?url=https://t.me/Cyber_safeness_bot')
+            InlineKeyboardButton("Поделиться", url=f'https://t.me/share/url?url={bot_url}')
         ]
     ]
     markup = InlineKeyboardMarkup(keyboard)
