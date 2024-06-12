@@ -29,7 +29,7 @@ db_session.global_init()
 logger = logging.getLogger(__name__)
 
 (GREETING_STATE, REGISTRATION_STATE, NAME_STATE, SCHEDULE_STATE, SEX_STATE,
- AGE_STATE, SHOW_MENU_STATE, TIME_STATE, TIMEZONE_STATE, PERIOD_STATE) = range(10)
+ AGE_STATE, TIME_STATE, TIMEZONE_STATE, PERIOD_STATE) = range(9)
 
 PROFILE_SHOW_STATE, PROFILE_EDIT_STATE, PROFILE_EDIT_FIELD_STATE, PROFILE_EDIT_APPLY_STATE = range(4)
 ADVENT_TIMER_STATE, ADVENT_WORK_STATE = range(2)
@@ -57,22 +57,34 @@ async def get_timezone_by_utc_offset(utc_offset: timedelta) -> str:
     return ""
 
 
-async def help(update, context):
+async def help_message(update, context):
+    user = await find_user_by_chat_id(update.message.chat.id)
+    if user is None:
+        advent_start = None
+    else:
+        advent_start = user.Advent_Start
+
     """Отправляет сообщение когда получена команда /help"""
     await update.message.reply_text("Этот чат-бот предназначен для повышения уровня знаний цифровой гигиены и помощи "
-                                    "в усилении безопасности существующих аккаунтов и чувствительных данных.\n После "
-                                    "регистрации вам будет доступно меню, благодаря которому вы можете общаться с "
-                                    "ботом. Чтобы изменить данные, заданные по регистрации, можно перейти по кнопке "
-                                    "Мой профиль и далее в Редактировать данные и поменять нужный параметр.\n Чтобы "
-                                    "запустить рассылку рекомендаций, нужно нажать на кнопку Запустить новогодний "
-                                    "адвент по цифровой гигиене. После нажатия вам будут подаваться рекомендации в "
-                                    "зависимости от выбранного графика(ежедневно, рабочие, выходные дни).\n Вам "
-                                    "следует выполнять наши рекомендации и отмечать это в боте(по кнопке выполнить "
-                                    "или отложить). Также вы можете посмотреть выданные рекомендации по кнопке "
-                                    "Рекомендации и изменить статус их выполнения в Результаты выполнения.\n Кнопка "
-                                    "Пригласить друзей поможет вам сделать ваших друзей более грамотными в цифровой "
-                                    "среде и поделиться с ними ссылкой на нашего бота. Чтобы проверить свои знания, "
-                                    "можно пройти тест по кнопке Пройти тест по цифровой гигиене.")
+                                    "в усилении безопасности существующих аккаунтов и чувствительных данных.\n\n"
+                                    "Доступные команды:\n\n"
+                                    "/start - регистрация;\n"
+                                    "/stop - остановка бота;\n"
+                                    "/menu - основное меню;\n"
+                                    "/help - показать справку.\n\n"
+                                    "После регистрации вам будет доступно меню, благодаря которому вы можете общаться "
+                                    "с ботом. Чтобы изменить данные, заданные по регистрации, можно перейти по кнопке "
+                                    "Мой профиль и далее в *Редактировать данные* и поменять нужный параметр.\n\n"
+                                    "Чтобы запустить рассылку рекомендаций, нужно нажать на кнопку *Запустить новогодний"
+                                    " адвент* по цифровой гигиене. После нажатия вам будут подаваться рекомендации в "
+                                    "зависимости от выбранного графика(ежедневно, рабочие, выходные дни).\n\n"
+                                    "Вам следует выполнять наши рекомендации и отмечать это в боте (по кнопке *выполнить* "
+                                    "или *отложить*). Также вы можете посмотреть выданные рекомендации по кнопке "
+                                    "Рекомендации и изменить статус их выполнения в *Результаты выполнения*.\n\n"
+                                    "Кнопка *Пригласить друзей* поможет вам сделать ваших друзей более грамотными в "
+                                    "цифровой среде и поделиться с ними ссылкой на нашего бота. Чтобы проверить свои "
+                                    "знания, можно пройти тест по кнопке *Пройти тест по цифровой гигиене*.",
+                                    reply_markup=build_main_menu(advent_start), parse_mode='markdown')
 
 
 async def stop(update, context):
@@ -242,14 +254,11 @@ async def start(update, context):
                              reply_markup=markup)
         return GREETING_STATE
     else:
-        reply_keyboard = [['Меню']]
-        markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
-
         await bot.send_photo(chat_id=chat_id,
                              photo='https://img.freepik.com/free-vector/technical-support-service-site_80328-68.jpg?t=st=1717695596~exp=1717699196~hmac=419f0dc67a3bb3e7fecfe47e9e64615daaee5692bdb3c828e3c2dae5265d1376&w=2000',
                              caption=f"Добрый день, {user.Name}, давно не виделись! Воспользуйтесь меню.",
-                             reply_markup=markup)
-        return SHOW_MENU_STATE
+                             reply_markup=build_main_menu(user.Advent_Start))
+        return ConversationHandler.END
 
 
 async def greeting(update, context):
@@ -393,7 +402,9 @@ async def age(update, context):
             context.user_data['age'] = "55-100"
 
     create_profile(update, context)
-    return await show_menu(update, context)
+
+    await update.message.reply_text("Меню", reply_markup=build_main_menu())
+    return ConversationHandler.END
 
 
 def create_profile(update, context):
@@ -414,11 +425,9 @@ def create_profile(update, context):
     db_sess.close()
 
 
-async def show_menu(update, context):
-    user = await find_user_by_chat_id(update.message.chat.id)
-
+def build_main_menu(advent_start: Optional[datetime] = None) -> ReplyKeyboardMarkup:
     reply_keyboard = [['Мой профиль', 'Рекомендации']]
-    if user and (user.Advent_Start is None):
+    if advent_start is None:
         # Кнопку запуска адвента показываем только, если пользователь не запустил ранее адвент
         reply_keyboard.append(['Запустить новогодний адвент по цифровой гигиене'])
 
@@ -427,10 +436,18 @@ async def show_menu(update, context):
         ['Пройти тест по цифровой гигиене'],
         ['Пригласить друзей', 'Помощь']])
 
-    markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
-    # await bot.send_photo(chat_id=update.message.chat.id,
-    #                      photo="https://img.freepik.com/free-vector/tiny-business-people-with-digital-devices-big-globe-surfing-internet_335657-2449.jpg?t=st=1717695852~exp=1717699452~hmac=5d5ae3568da44133edf2c0a7f6c0a899ee29ad8db05a4444b961a293ae245a8e&w=2000")
-    await update.message.reply_text("Меню", reply_markup=markup)
+    return ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
+
+
+async def show_main_menu(update, context):
+    user = await find_user_by_chat_id(update.message.chat.id)
+    if user is None:
+        await update.message.reply_text("Для отображения основного меню необходимо предварительно "
+                                        "зарегистрироваться, воспользуйтесь командой /start",
+                                        reply_markup=ReplyKeyboardRemove())
+        return
+
+    await update.message.reply_text("Меню", reply_markup=build_main_menu(user.Advent_Start))
     return ConversationHandler.END
 
 
@@ -586,7 +603,7 @@ async def send_recommendation(context):
     # Если пользователь не найден, то адвент прекращается - выход
     if user is None:
         await context.bot.send_message(chat_id=context.job.chat_id,
-                                       text='Такой пользователь не найден, адвент будет остановлен!')
+                                       text='Такой пользователь не найден, воспользуйтесь командой /start')
         context.job.schedule_removal()
         return
 
@@ -611,7 +628,8 @@ async def send_recommendation(context):
 
     # Если все рекомендации уже были отправлены ранее, то завершаем адвент - выход
     if new_req_id > recommendations_count:
-        await context.bot.send_message(chat_id=user.Chat_Id, text=f'Вы получили все рекомендации!')
+        await context.bot.send_message(chat_id=user.Chat_Id, text=f'Вы получили все рекомендации!',
+                                       reply_markup=build_main_menu(user.Advent_Start))
         context.job.schedule_removal()
         return
 
@@ -660,7 +678,7 @@ async def send_notification(context: ContextTypes.DEFAULT_TYPE):
     user = await find_user_by_chat_id(context.job.chat_id)
     if user is None:
         await context.bot.send_message(chat_id=context.job.chat_id,
-                                       text='Такой пользователь не найден, адвент будет остановлен!')
+                                       text='Такой пользователь не найден, воспользуйтесь командой /start')
         context.job.schedule_removal()
         return
 
@@ -775,11 +793,13 @@ async def start_advent(update, context):
     chat_id = update.message.chat_id
     user = await find_user_by_chat_id(chat_id)
     if user is None:
-        await context.bot.send_message(chat_id=chat_id, text='Такой пользователь не найден, адвент не будет запущен!')
+        await context.bot.send_message(chat_id=chat_id, text='Такой пользователь не найден, '
+                                                             'воспользуйтесь командой /start')
         return
 
     if not (user.Advent_Start is None):
-        await context.bot.send_message(chat_id=chat_id, text='Новогодний адвент уже был запущен ранее!')
+        await context.bot.send_message(chat_id=chat_id, text='Новогодний адвент уже был запущен ранее!',
+                                       reply_markup=build_main_menu(user.Advent_Start))
         return
 
     user.Advent_Start = datetime.now()
@@ -788,7 +808,8 @@ async def start_advent(update, context):
     db_sess.commit()
     db_sess.close()
 
-    await context.bot.send_message(chat_id=chat_id, text='Новогодний адвент запущен')
+    await context.bot.send_message(chat_id=chat_id, text='Новогодний адвент запущен',
+                                   reply_markup=build_main_menu(user.Advent_Start))
     await run_recommendation_job(context, chat_id)
 
 
@@ -838,6 +859,7 @@ async def share(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                    text=f"Поделитесь нашим ботом со своими друзьями, чтобы и они "
                                         f"были грамотными в цифровой среде!",
                                    reply_markup=markup)
+    await show_main_menu(update, context)
 
 
 async def show_recommendation(update, context):
@@ -856,7 +878,8 @@ async def show_recommendation(update, context):
 
     if len(list_rec) == 0:
         await context.bot.send_message(chat_id=user.Chat_Id,
-                                       text='Список рекомендаций пуст. Убедитесь, что вы запустили "Новогодний адвент"')
+                                       text='Список рекомендаций пуст. Убедитесь, что вы запустили "Новогодний адвент"',
+                                       reply_markup=build_main_menu(user.Advent_Start))
         return
 
     result = ''
@@ -870,10 +893,11 @@ async def show_recommendation(update, context):
             result += f'*День {rec.rec_id}.* {rec_info.recommendation}\n'
 
     await context.bot.send_message(chat_id=user.Chat_Id, text=f'Список трех последних рекомендаций:\n\n{result}',
+                                   reply_markup=build_main_menu(user.Advent_Start),
                                    parse_mode='markdown')
 
 
-async def test_digital_gegeyna(update, context):
+async def test_knowledge(update, context):
     user = await find_user_by_chat_id(update.message.chat_id)
     if user is None:
         return
@@ -888,9 +912,11 @@ async def test_digital_gegeyna(update, context):
             'возможность скачать стикерпак от Киберпротекта? '
             'Тогда попробуйте пройти тест!',
             reply_markup=markup)
+        await show_main_menu(update, context)
     else:
         await update.message.reply_text(
-            'Это кнопка станет доступной только после полного прохождения теста по цифровой гигиене')
+            'Пройти тест можно будет только после выполнения всех рекомендаций адвента',
+            reply_markup=build_main_menu(user.Advent_Start))
 
 
 async def forma_yandex(update, context):
@@ -902,7 +928,8 @@ async def forma_yandex(update, context):
     if user is None:
         return
 
-    await context.bot.send_message(chat_id=user.Chat_Id, text='https://forms.yandex.ru/u/6663258b5056903972729751/')
+    await context.bot.send_message(chat_id=user.Chat_Id, text='https://forms.yandex.ru/u/6663258b5056903972729751/',
+                                   reply_markup=build_main_menu(user.Advent_Start))
 
 
 # Получить страницу с отправленными рекомендациями
@@ -946,18 +973,21 @@ async def show_results(update, context):
 
     user = await find_user_by_chat_id(chat_id)
     if user is None:
-        await context.bot.send_message(chat_id=chat_id, text='Пользователь не найден.')
+        await context.bot.send_message(chat_id=chat_id, text='Пользователь не найден, воспользуйтесь командой /start')
         return
 
     # Определяем количество отправленных рекомендаций
     rec_count = await sent_recommendation_count(user.User_ID)
     if rec_count == 0:
-        await context.bot.send_message(chat_id=user.Chat_Id, text='Ни одной рекомендации не было отправлено.')
+        await context.bot.send_message(chat_id=user.Chat_Id, text='Еще ни одной рекомендации не было отправлено',
+                                       reply_markup=build_main_menu(user.Advent_Start))
         return
 
     page_size = 5
-    page_count = rec_count // page_size
     page_num = 0
+    page_count = rec_count // page_size
+    if rec_count % page_size > 0:
+        page_count += 1
 
     if page_count > 1:
         reply_keyboard = [['Показать далее...', 'Изменить статус выполнения', 'Меню']]
@@ -966,7 +996,8 @@ async def show_results(update, context):
 
     result = await get_recommendation_page(user.User_ID, page_num, page_size)
     markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
-    await context.bot.send_message(chat_id=user.Chat_Id, text=f'Результат выполнения:\n\n{result}',
+    await context.bot.send_message(chat_id=user.Chat_Id, text=f'Результат выполнения:\n\n{result}\n\n'
+                                                              f'Страница {page_num+1} из {page_count}',
                                    parse_mode='HTML', reply_markup=markup)
 
     context.user_data['page_size'] = page_size
@@ -984,14 +1015,15 @@ async def show_result_next(update, context):
     page_count = context.user_data['page_count']
     page_num = context.user_data['page_num'] + 1
 
-    if page_num < (page_count-1):
+    if page_num < (page_count - 1):
         reply_keyboard = [['Показать далее...', 'Изменить статус выполнения', 'Меню']]
     else:
         reply_keyboard = [['Изменить статус выполнения', 'Меню']]
 
     result = await get_recommendation_page(user.User_ID, page_num, page_size)
     markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
-    await context.bot.send_message(chat_id=user.Chat_Id, text=f'Результат выполнения:\n\n{result}',
+    await context.bot.send_message(chat_id=user.Chat_Id, text=f'Результат выполнения:\n\n{result}\n\n'
+                                                              f'Страница {page_num+1} из {page_count}',
                                    parse_mode='HTML', reply_markup=markup)
 
     context.user_data['page_num'] = page_num
@@ -999,32 +1031,59 @@ async def show_result_next(update, context):
 
 
 async def change_results(update, context):
-    chat_id = str(update.message.chat_id)
-    await context.bot.send_message(chat_id=chat_id,
-                                   text='Введите номер рекомендации, статус которой Вы хотели бы изменить')
+    user = await find_user_by_chat_id(update.message.chat_id)
+    if user is None:
+        return
+
+    page_count = context.user_data['page_count']
+    page_num = context.user_data['page_num'] + 1
+
+    if page_num < (page_count - 1):
+        reply_keyboard = [['Показать далее...', 'Изменить статус выполнения', 'Меню']]
+    else:
+        reply_keyboard = [['Изменить статус выполнения', 'Меню']]
+    markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
+
+    await context.bot.send_message(chat_id=user.Chat_Id,
+                                   text='Введите номер рекомендации, статус которой Вы хотели бы изменить',
+                                   reply_markup=markup)
     return RESULTS_REC_NUM
 
 
 async def change_status_results(update, context):
-    chat_id = str(update.message.chat_id)
+    user = await find_user_by_chat_id(update.message.chat_id)
+    if user is None:
+        return
+
+    page_count = context.user_data['page_count']
+    page_num = context.user_data['page_num'] + 1
+
+    if page_num < (page_count - 1):
+        reply_keyboard = [['Показать далее...', 'Изменить статус выполнения', 'Меню']]
+    else:
+        reply_keyboard = [['Изменить статус выполнения', 'Меню']]
+    markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
 
     rec_id = update.message.text
     if not rec_id.isdigit():
-        await context.bot.send_message(chat_id=chat_id, text="Введите номер рекомендации!")
+        await context.bot.send_message(chat_id=user.Chat_Id, text="Введите номер рекомендации",
+                                       reply_markup=markup)
         return RESULTS_REC_NUM
 
     rec_info = await get_recommendation_info_by_id(update.message.text)
     if rec_info is None:
-        await context.bot.send_message(chat_id=chat_id, text="Рекомендации с таким номером не найдена!")
+        await context.bot.send_message(chat_id=user.Chat_Id,
+                                       text="Рекомендации с таким номером не найдена, попробуйте еще раз",
+                                       reply_markup=markup)
         return RESULTS_REC_NUM
 
     keyboard = [
         [InlineKeyboardButton("Отметить как выполненное", callback_data=f"{BUTTON_REC_DONE}:{rec_id}")],
         [InlineKeyboardButton("Отложить выполнение", callback_data=f"{BUTTON_REC_SKIP}:{rec_id}")]
     ]
-    markup = InlineKeyboardMarkup(keyboard)
+    inline_markup = InlineKeyboardMarkup(keyboard)
     rec = f'№ {rec_id}: {rec_info.recommendation}\n'
-    await context.bot.send_message(chat_id=chat_id, text=rec, reply_markup=markup)
+    await context.bot.send_message(chat_id=user.Chat_Id, text=rec, reply_markup=inline_markup)
     return RESULTS_SHOW
 
 
@@ -1045,7 +1104,8 @@ def main():
     application.job_queue.run_once(resume_sending, 1)
 
     application.add_handler(CommandHandler("stop", stop))
-    application.add_handler(CommandHandler("help", help))
+    application.add_handler(CommandHandler("help", help_message))
+    application.add_handler(CommandHandler("menu", show_main_menu))
 
     condition = (filters.TEXT | filters.PHOTO) & ~filters.COMMAND
 
@@ -1062,11 +1122,9 @@ def main():
             SEX_STATE: [MessageHandler(condition, sex)],
             AGE_STATE: [MessageHandler(condition, age)],
             PERIOD_STATE: [MessageHandler(condition, period)],
-            SHOW_MENU_STATE: [MessageHandler(filters.Text(["Меню"]), show_menu)]
         },
         fallbacks=[
             CommandHandler('stop', stop),
-            MessageHandler(filters.Text(["Меню"]), show_menu),
         ]
     )
     application.add_handler(start_handler)
@@ -1091,7 +1149,7 @@ def main():
             ],
         },
         fallbacks=[
-            MessageHandler(filters.Text(["Меню"]), show_menu),
+            MessageHandler(filters.Text(["Меню"]), show_main_menu),
         ]
     )
 
@@ -1099,9 +1157,9 @@ def main():
     application.add_handler(
         MessageHandler(filters.Text(["Запустить новогодний адвент по цифровой гигиене"]), start_advent))
     application.add_handler(MessageHandler(filters.Text(["Рекомендации"]), show_recommendation))
-    application.add_handler(MessageHandler(filters.Text(["Пройти тест по цифровой гигиене"]), test_digital_gegeyna))
+    application.add_handler(MessageHandler(filters.Text(["Пройти тест по цифровой гигиене"]), test_knowledge))
     application.add_handler(MessageHandler(filters.Text(["Пригласить друзей"]), share))
-    application.add_handler(MessageHandler(filters.Text(["Помощь"]), help))
+    application.add_handler(MessageHandler(filters.Text(["Помощь"]), help_message))
 
     # Обработка кнопки "Результаты выполнения"
     results_handler = ConversationHandler(
@@ -1122,7 +1180,7 @@ def main():
             ],
         },
         fallbacks=[
-            MessageHandler(filters.Text(["Меню"]), show_menu),
+            MessageHandler(filters.Text(["Меню"]), show_main_menu),
         ]
     )
     application.add_handler(results_handler)
@@ -1130,7 +1188,8 @@ def main():
     application.add_handler(CallbackQueryHandler(done_recommendation, pattern=f"^{BUTTON_REC_DONE}:\\d+$"))
     application.add_handler(CallbackQueryHandler(skip_recommendation, pattern=f"^{BUTTON_REC_SKIP}:\\d+$"))
     application.add_handler(CallbackQueryHandler(forma_yandex, pattern=f"^{BUTTON_RUN_TEST}$"))
-    application.add_handler(CallbackQueryHandler(results_handler.entry_points[0].callback, pattern=f"^{BUTTON_REC_REPORT}"))
+    application.add_handler(
+        CallbackQueryHandler(results_handler.entry_points[0].callback, pattern=f"^{BUTTON_REC_REPORT}"))
 
     application.run_polling()
 
