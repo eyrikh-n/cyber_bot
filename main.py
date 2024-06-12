@@ -18,7 +18,6 @@ from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardMar
 
 web = Flask(__name__)
 
-
 BOT_TOKEN = os.environ.get('API_BOT_TOKEN', '6522784356:AAHB7lKSBukJDq-Tq3SAB9mxql95Cn9Dutg')
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG
@@ -443,7 +442,8 @@ async def show_main_menu(update, context):
     user = await find_user_by_chat_id(update.message.chat.id)
     if user is None:
         await update.message.reply_text("Для отображения основного меню необходимо предварительно "
-                                        "зарегистрироваться, воспользуйтесь командой /start", reply_markup=ReplyKeyboardRemove())
+                                        "зарегистрироваться, воспользуйтесь командой /start",
+                                        reply_markup=ReplyKeyboardRemove())
         return
 
     await update.message.reply_text("Меню", reply_markup=build_main_menu(user.Advent_Start))
@@ -987,8 +987,10 @@ async def show_results(update, context):
         return
 
     page_size = 5
-    page_count = rec_count // page_size
     page_num = 0
+    page_count = rec_count // page_size
+    if rec_count % page_size > 0:
+        page_count += 1
 
     if page_count > 1:
         reply_keyboard = [['Показать далее...', 'Изменить статус выполнения', 'Меню']]
@@ -997,7 +999,8 @@ async def show_results(update, context):
 
     result = await get_recommendation_page(user.User_ID, page_num, page_size)
     markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
-    await context.bot.send_message(chat_id=user.Chat_Id, text=f'Результат выполнения:\n\n{result}',
+    await context.bot.send_message(chat_id=user.Chat_Id, text=f'Результат выполнения:\n\n{result}\n\n'
+                                                              f'Страница {page_num+1} из {page_count}',
                                    parse_mode='HTML', reply_markup=markup)
 
     context.user_data['page_size'] = page_size
@@ -1015,14 +1018,15 @@ async def show_result_next(update, context):
     page_count = context.user_data['page_count']
     page_num = context.user_data['page_num'] + 1
 
-    if page_num < (page_count-1):
+    if page_num < (page_count - 1):
         reply_keyboard = [['Показать далее...', 'Изменить статус выполнения', 'Меню']]
     else:
         reply_keyboard = [['Изменить статус выполнения', 'Меню']]
 
     result = await get_recommendation_page(user.User_ID, page_num, page_size)
     markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
-    await context.bot.send_message(chat_id=user.Chat_Id, text=f'Результат выполнения:\n\n{result}',
+    await context.bot.send_message(chat_id=user.Chat_Id, text=f'Результат выполнения:\n\n{result}\n\n'
+                                                              f'Страница {page_num+1} из {page_count}',
                                    parse_mode='HTML', reply_markup=markup)
 
     context.user_data['page_num'] = page_num
@@ -1034,9 +1038,18 @@ async def change_results(update, context):
     if user is None:
         return
 
+    page_count = context.user_data['page_count']
+    page_num = context.user_data['page_num'] + 1
+
+    if page_num < (page_count - 1):
+        reply_keyboard = [['Показать далее...', 'Изменить статус выполнения', 'Меню']]
+    else:
+        reply_keyboard = [['Изменить статус выполнения', 'Меню']]
+    markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
+
     await context.bot.send_message(chat_id=user.Chat_Id,
                                    text='Введите номер рекомендации, статус которой Вы хотели бы изменить',
-                                   reply_markup=build_main_menu(user.Advent_Start))
+                                   reply_markup=markup)
     return RESULTS_REC_NUM
 
 
@@ -1045,25 +1058,35 @@ async def change_status_results(update, context):
     if user is None:
         return
 
+    page_count = context.user_data['page_count']
+    page_num = context.user_data['page_num'] + 1
+
+    if page_num < (page_count - 1):
+        reply_keyboard = [['Показать далее...', 'Изменить статус выполнения', 'Меню']]
+    else:
+        reply_keyboard = [['Изменить статус выполнения', 'Меню']]
+    markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
+
     rec_id = update.message.text
     if not rec_id.isdigit():
         await context.bot.send_message(chat_id=user.Chat_Id, text="Введите номер рекомендации",
-                                       reply_markup=build_main_menu(user.Advent_Start))
+                                       reply_markup=markup)
         return RESULTS_REC_NUM
 
     rec_info = await get_recommendation_info_by_id(update.message.text)
     if rec_info is None:
-        await context.bot.send_message(chat_id=user.Chat_Id, text="Рекомендации с таким номером не найдена, попробуйте еще раз",
-                                       reply_markup=build_main_menu(user.Advent_Start))
+        await context.bot.send_message(chat_id=user.Chat_Id,
+                                       text="Рекомендации с таким номером не найдена, попробуйте еще раз",
+                                       reply_markup=markup)
         return RESULTS_REC_NUM
 
     keyboard = [
         [InlineKeyboardButton("Отметить как выполненное", callback_data=f"{BUTTON_REC_DONE}:{rec_id}")],
         [InlineKeyboardButton("Отложить выполнение", callback_data=f"{BUTTON_REC_SKIP}:{rec_id}")]
     ]
-    markup = InlineKeyboardMarkup(keyboard)
+    inline_markup = InlineKeyboardMarkup(keyboard)
     rec = f'№ {rec_id}: {rec_info.recommendation}\n'
-    await context.bot.send_message(chat_id=user.Chat_Id, text=rec, reply_markup=markup)
+    await context.bot.send_message(chat_id=user.Chat_Id, text=rec, reply_markup=inline_markup)
     return RESULTS_SHOW
 
 
@@ -1168,7 +1191,8 @@ def main():
     application.add_handler(CallbackQueryHandler(done_recommendation, pattern=f"^{BUTTON_REC_DONE}:\\d+$"))
     application.add_handler(CallbackQueryHandler(skip_recommendation, pattern=f"^{BUTTON_REC_SKIP}:\\d+$"))
     application.add_handler(CallbackQueryHandler(forma_yandex, pattern=f"^{BUTTON_RUN_TEST}$"))
-    application.add_handler(CallbackQueryHandler(results_handler.entry_points[0].callback, pattern=f"^{BUTTON_REC_REPORT}"))
+    application.add_handler(
+        CallbackQueryHandler(results_handler.entry_points[0].callback, pattern=f"^{BUTTON_REC_REPORT}"))
 
     application.run_polling()
 
