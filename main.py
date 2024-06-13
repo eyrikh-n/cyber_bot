@@ -813,7 +813,7 @@ async def start_advent(update, context):
     db_sess.close()
 
     await context.bot.send_message(chat_id=chat_id, text='Новогодний адвент запущен',
-                                   reply_markup=build_main_menu(user.Advent_Start))
+                                   reply_markup=build_main_menu(datetime.now()))
     await run_recommendation_job(context, chat_id)
 
 
