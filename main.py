@@ -1105,7 +1105,7 @@ def run_web_server():
 
 
 def main():
-    threading.Thread(target=run_web_server, daemon=False).start()
+    threading.Thread(target=run_web_server, daemon=True).start()
 
     init_recommendations()
 
