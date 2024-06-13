@@ -21,7 +21,7 @@ web = Flask(__name__)
 
 BOT_TOKEN = os.environ.get('API_BOT_TOKEN', 'PUT_YOUR_LOCAL_BOT_TOKEN')
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.WARN
 )
 bot = telegram.Bot(token=BOT_TOKEN)
 bot_url = os.environ.get('BOT_URL', 'https://t.me/Cyber_safeness_bot')
