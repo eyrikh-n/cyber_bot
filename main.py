@@ -1088,6 +1088,16 @@ async def change_status_results(update, context):
     return RESULTS_SHOW
 
 
+async def handle_everything_else(update, context):
+    user = await find_user_by_chat_id(update.message.chat_id)
+    if user is None:
+        await context.bot.send_message(chat_id=update.message.chat_id,
+                                       text="🤖 Ой, возможно мы еще не знакомы с вами, попробуйте выполнить команду /start")
+        return
+
+    await update.message.reply_text("🤖 Что-то я вас не понял, воспользуйтесь главным меню",
+                                    reply_markup=build_main_menu(user.Advent_Start))
+
 def run_web_server():
     port = int(os.environ.get("PORT", 5000))
     print(f"Web-server starting on port {port}")
@@ -1107,6 +1117,7 @@ def main():
     application.add_handler(CommandHandler("stop", stop))
     application.add_handler(CommandHandler("help", help_message))
     application.add_handler(CommandHandler("menu", show_main_menu))
+    application.add_handler(MessageHandler(filters.Text(["Меню"]), show_main_menu))
 
     condition = (filters.TEXT | filters.PHOTO) & ~filters.COMMAND
 
@@ -1192,6 +1203,7 @@ def main():
     application.add_handler(
         CallbackQueryHandler(results_handler.entry_points[0].callback, pattern=f"^{BUTTON_REC_REPORT}"))
 
+    application.add_handler(MessageHandler(filters.ALL, handle_everything_else))
     application.run_polling()
 
 
