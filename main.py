@@ -6,7 +6,7 @@ from typing import Optional
 
 from flask import Flask
 import pytz
-from sqlalchemy import func
+from sqlalchemy import func, join
 import telegram
 from data import db_session
 from data.users import User
@@ -939,8 +939,13 @@ async def forma_yandex(update, context):
 # Получить страницу с отправленными рекомендациями
 async def get_recommendation_page(user_id: str, page_num: int, page_size: int) -> str:
     db_sess = db_session.create_session()
+
     # Получаем пять последних отправленных рекомендаций пользователю
-    sent_recommendations = (db_sess.query(Status_recommendation)
+    j = join(Status_recommendation, Recommendation, Status_recommendation.rec_id == Recommendation.id)
+    sent_recommendations = (db_sess.query(Status_recommendation.rec_id,
+                                          Status_recommendation.rec_status,
+                                          Recommendation.recommendation)
+                            .select_from(j)
                             .filter(Status_recommendation.user_id == user_id)
                             .order_by(Status_recommendation.rec_id.desc())
                             .offset(page_num * page_size)
@@ -948,16 +953,14 @@ async def get_recommendation_page(user_id: str, page_num: int, page_size: int) -
                             .all())
     result = ''
     for idx, rec in enumerate(sent_recommendations):
-        rec_info = await get_recommendation_info_by_id(rec.rec_id)
-        if rec_info is None:
-            continue
-        if rec.rec_status == REC_STATUS_DONE:
+        rec_id, rec_status, rec_name = rec[0], rec[1], rec[2]
+        if rec_status == REC_STATUS_DONE:
             visualize = '🟢'
-        elif rec.rec_status == REC_STATUS_SKIP:
+        elif rec_status == REC_STATUS_SKIP:
             visualize = '🔴'
         else:
             visualize = '⚪️'
-        result += f'{visualize} № {rec.rec_id}: {rec_info.recommendation}\n'
+        result += f'{visualize} № {rec_id}: {rec_name}\n'
     return result
 
 
