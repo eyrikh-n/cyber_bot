@@ -227,7 +227,8 @@ async def skip_rec(context, user_id, rec_id):
         return
 
     # Удаляем сообщение с рекомендацией из чата
-    await context.bot.delete_message(chat_id=user.Chat_Id, message_id=rec.message_id)
+    if rec.message_id != "":
+        await context.bot.delete_message(chat_id=user.Chat_Id, message_id=rec.message_id)
 
     # Откладываем рекомендацию, меняя статус и затираем идентификатор сообщения (т.к. оно было удалено)
     rec.rec_status = REC_STATUS_SKIP
@@ -1184,7 +1185,7 @@ def main():
         },
         fallbacks=[
             MessageHandler(filters.Text(["Меню"]), show_main_menu),
-        ]
+        ],
     )
     application.add_handler(results_handler)
 
