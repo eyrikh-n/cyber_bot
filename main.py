@@ -1120,7 +1120,6 @@ def main():
     application.add_handler(CommandHandler("stop", stop))
     application.add_handler(CommandHandler("help", help_message))
     application.add_handler(CommandHandler("menu", show_main_menu))
-    application.add_handler(MessageHandler(filters.Text(["Меню"]), show_main_menu))
 
     condition = (filters.TEXT | filters.PHOTO) & ~filters.COMMAND
 
