@@ -1100,6 +1100,8 @@ async def handle_everything_else(update, context):
 
     await update.message.reply_text("🤖 Что-то я вас не понял, воспользуйтесь главным меню",
                                     reply_markup=build_main_menu(user.Advent_Start))
+    return ConversationHandler.END
+
 
 def run_web_server():
     port = int(os.environ.get("PORT", 5000))
@@ -1164,6 +1166,7 @@ def main():
         },
         fallbacks=[
             MessageHandler(filters.Text(["Меню"]), show_main_menu),
+            MessageHandler(filters.ALL, handle_everything_else)
         ]
     )
 
@@ -1195,6 +1198,7 @@ def main():
         },
         fallbacks=[
             MessageHandler(filters.Text(["Меню"]), show_main_menu),
+            MessageHandler(filters.ALL, handle_everything_else)
         ],
     )
     application.add_handler(results_handler)
