@@ -763,6 +763,12 @@ async def run_recommendation_job(context, chat_id):
     user_tz = pytz.timezone(user.Timezone)
     user_time = datetime.strptime(user.Time, '%H:%M')
 
+    # Отправление первой рекомендации при запуске адвента
+    rec_count = await sent_recommendation_count(user.User_ID)
+    if rec_count == 0:
+        context.job_queue.run_once(send_recommendation, 0, name=build_job_not_name(user.Chat_Id), data=user.Name,
+                                   chat_id=user.Chat_Id)
+
     # Запуск рекомендаций только если не все рекомендации были отправлены
     if not await is_all_recommendation_sent(user.User_ID):
         sent_time = time(user_time.hour, user_time.minute, 00, tzinfo=user_tz)
@@ -789,6 +795,8 @@ async def run_recommendation_job(context, chat_id):
                                         data=user.Name, chat_id=user.Chat_Id)
 
     # TODO: Для тестирования
+    # context.job_queue.run_once(send_recommendation, 0, name=build_job_not_name(user.Chat_Id), data=user.Name,
+    #                            chat_id=user.Chat_Id)
     # context.job_queue.run_repeating(send_recommendation, 5, name=build_job_rec_name(user.Chat_Id), data=user.Name, chat_id=user.Chat_Id)
     # context.job_queue.run_repeating(send_notification, 10, name=build_job_not_name(user.Chat_Id), data=user.Name, chat_id=user.Chat_Id)
 
@@ -806,7 +814,11 @@ async def start_advent(update, context):
                                        reply_markup=build_main_menu(user.Advent_Start))
         return
 
-    user.Advent_Start = datetime.now()
+    # Следующий день после начала адвента
+    today_datetime = datetime.now()
+    next_day_datetime = today_datetime + timedelta(days=1)
+
+    user.Advent_Start = datetime(next_day_datetime.year, next_day_datetime.month, next_day_datetime.day, 0, 0, 0)
     db_sess = db_session.create_session()
     db_sess.add(user)
     db_sess.commit()
@@ -1004,7 +1016,7 @@ async def show_results(update, context):
     result = await get_recommendation_page(user.User_ID, page_num, page_size)
     markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
     await context.bot.send_message(chat_id=user.Chat_Id, text=f'Результат выполнения:\n\n{result}\n\n'
-                                                              f'Страница {page_num+1} из {page_count}',
+                                                              f'Страница {page_num + 1} из {page_count}',
                                    parse_mode='HTML', reply_markup=markup)
 
     context.user_data['page_size'] = page_size
@@ -1030,7 +1042,7 @@ async def show_result_next(update, context):
     result = await get_recommendation_page(user.User_ID, page_num, page_size)
     markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=True)
     await context.bot.send_message(chat_id=user.Chat_Id, text=f'Результат выполнения:\n\n{result}\n\n'
-                                                              f'Страница {page_num+1} из {page_count}',
+                                                              f'Страница {page_num + 1} из {page_count}',
                                    parse_mode='HTML', reply_markup=markup)
 
     context.user_data['page_num'] = page_num
