@@ -65,7 +65,7 @@ class UserService:
     # Получить пользователя по его идентификатору в Telegram
     async def find_user_by_telegram_id(self, chat_id: str) -> Optional[UserModel]:
         db_sess = db_session.create_session()
-        db_user = db_sess.query(User).filter(User.Chat_Id == chat_id).first()
+        db_user = db_sess.query(User).filter(User.Chat_Id == str(chat_id)).first()
         db_sess.close()
         if db_user:
             return db_user_to_model(db_user)
