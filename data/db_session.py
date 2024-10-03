@@ -10,13 +10,12 @@ SqlAlchemyBase = orm.declarative_base()
 __factory = None
 
 
-def global_init():
+def global_init(db_url = None):
     global __factory
 
     if __factory:
         return
 
-    db_url = os.environ.get('DB_URL')
     if not (db_url is None):
         conn_str = db_url
         print(f"Выполнено подключение к облачной базе данных")
