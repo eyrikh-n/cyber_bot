@@ -99,15 +99,18 @@ class UserService:
 
     # Запуск адвента
     async def start_advent(self, user_id: int):
-        user = await self.find_user_by_id(user_id)
-        if user is None:
+        db_sess = db_session.create_session()
+        db_user = db_sess.query(User).filter(User.User_ID == user_id).first()
+        db_sess.close()
+
+        if db_user is None:
             return
-        if not (user.advent_start is None):
+        if not (db_user.Advent_Start is None):
             return
 
-        user.advent_start = datetime.now()
+        db_user.Advent_Start = datetime.now()
         db_sess = db_session.create_session()
-        db_sess.add(user)
+        db_sess.add(db_user)
         db_sess.commit()
         db_sess.close()
 
