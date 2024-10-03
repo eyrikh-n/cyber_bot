@@ -443,16 +443,21 @@ class TelegramBot:
         await update.message.reply_text("Изменения профиля успешно применены!", reply_markup=markup)
         return PROFILE_SHOW_STATE
 
+    async def send_recommendation_job(self, context):
+        is_all_sent = await self.send_recommendation(context, context.job.chat_id)
+        if is_all_sent:
+            context.job.schedule_removal()
 
-    async def send_recommendation(self, context):
+
+    # Отправка пользователю очередной рекомендации
+    async def send_recommendation(self, context, chat_id) -> bool:
         # Выполняем поиск пользователя по идентификатору чата
-        user = await self.user_service.find_user_by_telegram_id(context.job.chat_id)
+        user = await self.user_service.find_user_by_telegram_id(chat_id)
         # Если пользователь не найден, то адвент прекращается - выход
         if user is None:
-            await context.bot.send_message(chat_id=context.job.chat_id,
+            await context.bot.send_message(chat_id=chat_id,
                                            text='Такой пользователь не найден, воспользуйтесь командой /start')
-            context.job.schedule_removal()
-            return
+            return True
 
         # Определяем количество рекомендаций, которые в принципе нужно было отправить
         recommendations_count = await self.advent_service.get_recommendation_count()
@@ -472,13 +477,12 @@ class TelegramBot:
         if new_req_id > recommendations_count:
             await context.bot.send_message(chat_id=user.telegram_id, text=f'Вы получили все рекомендации!',
                                            reply_markup=self.build_main_menu(user.advent_start))
-            context.job.schedule_removal()
-            return
+            return True
 
         # Получаем текст очередной рекомендации и отправляем ее пользователю
         rec_new = await self.advent_service.get_recommendation_info_by_id(new_req_id)
         if rec_new is None:
-            return
+            return False
 
         keyboard = [
             [
@@ -490,7 +494,7 @@ class TelegramBot:
 
         # Отправляем рекомендацию
         message = await context.bot.send_message(chat_id=user.telegram_id,
-                                                 text=f'{context.job.data}, '
+                                                 text=f'{user.name}, '
                                                       f'рекомендация № {new_req_id}: '
                                                       f'{rec_new.text}!',
                                                  reply_markup=markup)
@@ -511,8 +515,9 @@ class TelegramBot:
             if last_rec.rec_status == REC_STATUS_INIT:
                 await self.skip_rec(context, user.user_id, last_rec.rec_id)
 
+        return False
 
-    async def send_notification(self, context: ContextTypes.DEFAULT_TYPE):
+    async def send_notification_job(self, context: ContextTypes.DEFAULT_TYPE):
         user = await self.user_service.find_user_by_telegram_id(context.job.chat_id)
         if user is None:
             await context.bot.send_message(chat_id=context.job.chat_id,
@@ -598,7 +603,7 @@ class TelegramBot:
                 sent_days = (5, 6)
 
             # Ежедневный запуск задачи
-            context.job_queue.run_daily(self.send_recommendation, name=self.build_job_rec_name(user.telegram_id),
+            context.job_queue.run_daily(self.send_recommendation_job, name=self.build_job_rec_name(user.telegram_id),
                                         time=sent_time, days=sent_days, data=user.name, chat_id=user.telegram_id)
 
         # Запуск напоминаний только если не завершен адвент
@@ -609,13 +614,13 @@ class TelegramBot:
                              timedelta(minutes=30))
 
             # Запускаем задачу с отправкой напоминаний с пользовательским интервалом
-            context.job_queue.run_repeating(self.send_notification, name=self.build_job_not_name(user.telegram_id),
+            context.job_queue.run_repeating(self.send_notification_job, name=self.build_job_not_name(user.telegram_id),
                                             first=sent_datetime, interval=timedelta(days=int(user.period)),
                                             data=user.name, chat_id=user.telegram_id)
 
         # TODO: Для тестирования
-        # context.job_queue.run_repeating(send_recommendation, 5, name=build_job_rec_name(user.Chat_Id), data=user.Name, chat_id=user.Chat_Id)
-        # context.job_queue.run_repeating(send_notification, 10, name=build_job_not_name(user.Chat_Id), data=user.Name, chat_id=user.Chat_Id)
+        # context.job_queue.run_repeating(send_recommendation_job, 5, name=build_job_rec_name(user.Chat_Id), data=user.Name, chat_id=user.Chat_Id)
+        # context.job_queue.run_repeating(send_notification_job, 10, name=build_job_not_name(user.Chat_Id), data=user.Name, chat_id=user.Chat_Id)
 
 
     async def start_advent(self, update, context):
@@ -635,6 +640,10 @@ class TelegramBot:
 
         await context.bot.send_message(chat_id=chat_id, text='Новогодний адвент запущен',
                                        reply_markup=self.build_main_menu(datetime.now()))
+
+        # Отправляем первую рекомендацию сразу же после запуска адвента
+        await self.send_recommendation(context, chat_id)
+        # Запускаем задание для отправки будущих рекомендаций
         await self.run_recommendation_job(context, chat_id)
 
 
