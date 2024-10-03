@@ -34,7 +34,7 @@ def main():
     advent_service.init_recommendations()
 
     # Запуск REST-контроллера в фоне
-    RestController(config.web_port).run_background()
+    RestController(config.web_port, user_service, advent_service).run_background()
     # Запуск telegram бота
     TelegramBot(config.bot_token, config.bot_name, user_service, advent_service).run()
 

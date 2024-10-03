@@ -72,6 +72,20 @@ class UserService:
         return None
 
 
+    # Получить список пользователей
+    def get_users(self, page_num: int = 0, page_size: int = 25) -> list[UserModel]:
+        db_sess = db_session.create_session()
+        db_users = (db_sess.query(User)
+                    .order_by(User.User_ID.asc())
+                    .offset(page_num * page_size)
+                    .limit(page_size).all())
+        result = list()
+        for user in db_users:
+            result.append(db_user_to_model(user))
+        db_sess.close()
+        return result
+
+
     # Получить пользователей по списку id
     async def get_users_by_ids(self, user_ids: list[int]) -> list[UserModel]:
         db_sess = db_session.create_session()
