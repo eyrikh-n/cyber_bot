@@ -179,7 +179,7 @@ class TelegramBot:
         time_value = update.message.text
         try:
             # Проверка на валидность введенного времени
-            _ = bool(datetime.strptime(time_value, "%H:%M"))
+            _ = datetime.strptime(time_value, "%H:%M")
             context.user_data['time'] = time_value
             await update.message.reply_text("Укажите интервал, в который вам будут присылаться напоминания "
                                             "о прохождении рекомендаций в днях. Например: каждые 2 дня.")
