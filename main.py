@@ -4,7 +4,7 @@ import logging
 from data import db_session
 from service.cyber_advent_service import CyberAdventService
 from service.user_service import UserService
-from view.telegram_view import TelegramBot
+from view.telegram_bot import TelegramBot
 from web.rest_controller import RestController
 
 
