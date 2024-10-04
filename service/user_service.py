@@ -26,7 +26,6 @@ class UserService:
         db_sess.commit()
         db_sess.close()
 
-        user_model.user_id = user.User_ID
         return user_model
 
 
