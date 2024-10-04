@@ -705,7 +705,8 @@ class TelegramBot:
             if rec_info is None:
                 continue
             if idx == 0:
-                result += f'*День {rec.rec_id}. Сегодня.* {rec_info.text}\n'
+                today = " Сегодня." if rec.send_time.date() == datetime.today().date() else ""
+                result += f'*День {rec.rec_id}.{today}* {rec_info.text}\n'
             else:
                 result += f'*День {rec.rec_id}.* {rec_info.text}\n'
 
