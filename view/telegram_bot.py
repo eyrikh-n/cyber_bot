@@ -194,12 +194,12 @@ class TelegramBot:
         if period_value.isdigit():
             if 1 <= int(period_value) <= 30:
                 context.user_data['period'] = str(period_value)
-                await update.message.reply_text("Укажите разницу по времени вашего региона относительно Москвы "
+                await update.message.reply_text("Укажите разницу по времени вашего региона относительно UTC "
                                                 "(в часах, начиная с + или -). "
-                                                "Например, для Новосибирска: +4, для Калининграда: -1")
+                                                "Например, для Новосибирска: +7, для Москвы: +4")
                 return TIMEZONE_STATE
             else:
-                await update.message.reply_text("Вы указали слишком большой или маленький диапазон. Попробуйте ещё раз.")
+                await update.message.reply_text("😝 Число должно быть в диапазоне от 0 до 30, попробуйте ещё раз")
                 return PERIOD_STATE
         else:
             await update.message.reply_text("Значение, которое вы ввели не является числом 😜, попробуйте ещё раз")
@@ -208,16 +208,16 @@ class TelegramBot:
 
     async def timezone_schedule(self, update, context):
         if update.message.text[0] != "+" and update.message.text[0] != "-":
-            await update.message.reply_text("Разница во времени должна начинаться либо с +, либо с -. Попробуйте еще раз.")
+            await update.message.reply_text("Разница во времени с UTC должна начинаться либо с +, либо с -. Попробуйте еще раз.")
             return TIMEZONE_STATE
 
         if update.message.text[1:].isdigit():
-            moscow_offset_value = update.message.text.replace("+", "")
-            utc_offset_hours = timedelta(hours=3 + int(moscow_offset_value))
+            utc_offset_value = update.message.text.replace("+", "")
+            utc_offset_hours = timedelta(hours=int(utc_offset_value))
             user_timezone = await get_timezone_by_utc_offset(utc_offset_hours)
             if user_timezone == "":
-                await update.message.reply_text(f"Не удалось определить часовой пояс по МСК{update.message.text}, "
-                                                f"попробуйте еще раз ввести разницу по часам с Москвой.")
+                await update.message.reply_text(f"Не удалось определить часовой пояс по UTC{update.message.text}, "
+                                                f"попробуйте еще раз ввести разницу по часам с UTC.")
                 return TIMEZONE_STATE
             else:
                 context.user_data['timezone'] = user_timezone
