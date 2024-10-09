@@ -50,7 +50,10 @@ class RestController:
         async def get_user_recommendation_random():
             random_num = random.randint(1, 30)
             recommendation = await self.advent_service.get_recommendation_info_by_id(random_num)
-            return json.dumps([rec.to_dict() for rec in recommendation], ensure_ascii=False)
+            if recommendation:
+                return json.dumps(recommendation.to_dict(), ensure_ascii=False)
+            else:
+                return not_found(f"Рекомендация не найдена")
 
         @self.web.route("/api/public/advice/today", methods=['GET'])
         async def get_user_recommendation_today():

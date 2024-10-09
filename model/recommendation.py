@@ -6,6 +6,11 @@ class RecommendationModel:
         self.num = num
         self.text = text
 
+    def to_dict(self):
+        return {
+            'day': self.num,
+            'text': self.text,
+        }
 
 def db_recommendation_to_model(db_recommendation: Recommendation) -> RecommendationModel:
     return RecommendationModel(db_recommendation.id, db_recommendation.recommendation)
