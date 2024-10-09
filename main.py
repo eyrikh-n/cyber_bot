@@ -32,6 +32,7 @@ def main():
     advent_service = CyberAdventService()
     # Инициализируем сервис
     advent_service.init_recommendations()
+    advent_service.init_advices()
 
     # Запуск REST-контроллера в фоне
     RestController(config.web_port, user_service, advent_service).run_background()

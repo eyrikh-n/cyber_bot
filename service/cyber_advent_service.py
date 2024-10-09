@@ -5,7 +5,9 @@ from sqlalchemy import func, join
 from data import db_session
 from data.recommendations import Recommendation
 from data.status_recommendation import Status_recommendation
+from data.advices import Advices
 from model.recommendation import RecommendationModel, db_recommendation_to_model
+from model.advices import AdvicesModel, db_advice_to_model
 from model.sent_recommendation import SentRecommendationModel
 from model.status_recommendation import db_recommendation_status_to_model, RecommendationStatusModel
 
@@ -265,5 +267,57 @@ class CyberAdventService:
         db_sess.add(
             Recommendation(recommendation='Удалите подозрительные или неиспользуемые приложения на вашем устройстве'))
         db_sess.add(Recommendation(recommendation='Заблокируте подозрительные чаты, предлагающие работу и т.д.'))
+        db_sess.commit()
+        db_sess.close()
+
+
+# Проинициализировать список пожеланий пользователю
+    def init_advices(self):
+        db_sess = db_session.create_session()
+        advices_count = db_sess.query(Advices).count()
+        if advices_count > 0:
+            return
+
+        db_sess.add(Advices(advice=f'Установите обновление ПО на своём устройстве'))
+        db_sess.add(Advices(advice='Обновите пароли от аккаунтов социальных сетей'))
+        db_sess.add(Advices(advice='Отключите автоматическое подключение к Bluetooth и Wi-Fi'))
+        db_sess.add(Advices(advice='Зашифруйте свои персональные данные'))
+        db_sess.add(Advices(advice='Подключите двухфакторную аутентификацию для своих аккаунтов'))
+        db_sess.add(
+            Advices(advice='Проверьте наличие несанкционированных приложений на своём устройств'))
+        db_sess.add(Advices(advice='Сделайте резервное копирование чатов в любом мессенджере'))
+        db_sess.add(Advices(advice='Ограничьте разрешения любого приложения на устройстве'))
+        db_sess.add(Advices(advice='Поставьте надёжный пароль на телефон'))
+        db_sess.add(Advices(advice='Включите дистанционнное удаление данных с телефона'))
+        db_sess.add(Advices(advice='Установите антивирусное ПО на всех своих устройствах'))
+        db_sess.add(Advices(advice='Проверьте любую компанию на наличие сертификата кибезопасности'))
+        db_sess.add(Advices(advice='Ограничьте доступ к вашим страницам в социальных сетях'))
+        db_sess.add(Advices(advice='Установите вход по отпечатку пальца для ваших устройств'))
+        db_sess.add(
+            Advices(advice='Зарегистрируйтесь на сайте, прочитав политику конфиденциальности'))
+        db_sess.add(Advices(advice='Обновите антивирусное ПО на вашем устройстве'))
+        db_sess.add(Advices(advice='Сделайте резервное копирование данных вашего устройства'))
+        db_sess.add(Advices(advice='"Почистите" список друзей в любой социальной сети'))
+        db_sess.add(Advices(advice='Смените пароль вашей электронной почты'))
+        db_sess.add(
+            Advices(advice='"Почистите" электронный ящик от ненужных или подозрительных писем'))
+        db_sess.add(
+            Advices(advice='Выйдите с аккаунта в социальной сети со всех устройств, кроме своего'))
+        db_sess.add(Advices(
+            advice='Заблокируйте подозрительные аккауты, которые оставили заявку в друзья, в любом мессенджере или социальной сети'))
+        db_sess.add(
+            Advices(
+                advice='Очистите чаты мессенджера от ненужной информации или просто удалите чат'))
+        db_sess.add(Advices(
+            advice='Обновите приложение мессенджера (если имеется), так как оно может содержать улучшение в области безопасности'))
+        db_sess.add(Advices(advice='Проверьте вкладку "Спам" вашего электронного ящика'))
+        db_sess.add(
+            Advices(advice='Проведите разбор файлов вашего электронного диска и удалите ненужное'))
+        db_sess.add(Advices(advice='Отключите геолокацию на вашем устройстве'))
+        db_sess.add(Advices(advice='Удалите неиспользуемые аккаунты'))
+        db_sess.add(
+            Advices(
+                advice='Удалите подозрительные или неиспользуемые приложения на вашем устройстве'))
+        db_sess.add(Advices(advice='Заблокируте подозрительные чаты, предлагающие работу и т.д.'))
         db_sess.commit()
         db_sess.close()
