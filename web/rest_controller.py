@@ -1,5 +1,7 @@
 import json
 import threading
+import random
+import datetime
 
 from flask import Flask, request, jsonify, make_response
 
@@ -44,6 +46,20 @@ class RestController:
             recommendations = await self.advent_service.get_recommendation_page(user_id, page_num, page_size)
             return json.dumps([rec.to_dict() for rec in recommendations], ensure_ascii=False)
 
+        @self.web.route("/api/public/advice/random", methods=['GET'])
+        async def get_user_recommendation_random():
+            random_num = random.randint(1, 30)
+            recommendation = await self.advent_service.get_recommendation_info_by_id(random_num)
+            return json.dumps([rec.to_dict() for rec in recommendation], ensure_ascii=False)
+
+        @self.web.route("/api/public/advice/today", methods=['GET'])
+        async def get_user_recommendation_today():
+            today_day = datetime.datetime.now().day
+            if today_day == 31:
+                today_day = 1
+            recommendation = await self.advent_service.get_recommendation_info_by_id(today_day)
+            return json.dumps([rec.to_dict() for rec in recommendation], ensure_ascii=False)
+
         def not_found(message):
             error = { 'error' : message }
             response = make_response(json.dumps(error, ensure_ascii=False))
@@ -52,7 +68,7 @@ class RestController:
 
     def run(self):
         print(f"Web-server starting on port {self.port}")
-        self.web.run(host='0.0.0.0', port=self.port)
+        self.web.run(host='127.0.0.1', port=self.port)
 
     def run_background(self):
         threading.Thread(target=self.run, daemon=True).start()
