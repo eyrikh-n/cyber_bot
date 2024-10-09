@@ -68,7 +68,7 @@ class RestController:
 
     def run(self):
         print(f"Web-server starting on port {self.port}")
-        self.web.run(host='127.0.0.1', port=self.port)
+        self.web.run(host='0.0.0.0', port=self.port)
 
     def run_background(self):
         threading.Thread(target=self.run, daemon=True).start()
