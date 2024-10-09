@@ -58,10 +58,15 @@ class RestController:
         @self.web.route("/api/public/advice/today", methods=['GET'])
         async def get_user_recommendation_today():
             today_day = datetime.datetime.now().day
-            if today_day == 31:
+            recommendations_count = await self.advent_service.get_recommendation_count()
+            if today_day > recommendations_count:
                 today_day = 1
+
             recommendation = await self.advent_service.get_recommendation_info_by_id(today_day)
-            return json.dumps([rec.to_dict() for rec in recommendation], ensure_ascii=False)
+            if recommendation:
+                return json.dumps(recommendation.to_dict(), ensure_ascii=False)
+            else:
+                return not_found(f"Рекомендация не найдена")
 
         def not_found(message):
             error = { 'error' : message }
